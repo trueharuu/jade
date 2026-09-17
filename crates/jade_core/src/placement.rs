@@ -9,8 +9,8 @@ pub struct Move(u16);
 
 const PIECE_SHIFT: u16 = 0;
 const X_SHIFT: u16 = 3;
-const Y_SHIFT: u16 = 3+2;
-const ROT_SHIFT: u16 = 3+2+2;
+const Y_SHIFT: u16 = 3 + 4;
+const ROT_SHIFT: u16 = 3 + 4 + 2;
 const PIECE_MASK: u16 = 0b111;
 const X_MASK: u16 = 0b1111;
 const Y_MASK: u16 = 0b11;
@@ -87,11 +87,12 @@ impl Move {
         Rotation::from_u8(r as u8)
     }
 
-    /// Returns the piece placement mask for this move.
+    /// Returns the placement mask for this move, or `None` when the move
+    /// places the piece out of bounds.
     #[inline]
     #[must_use]
-    pub const fn mask(self) -> u64 {
-        todo!()
+    pub fn mask(self) -> Option<u64> {
+        crate::data::place_mask(self.piece(), self.rotation(), self.x(), self.y())
     }
 
     /// Returns the canonical form of this [`Move`].
@@ -112,6 +113,52 @@ impl Move {
         } else {
             let (dx, dy) = piece.canonical_offset(r);
             Self::new(piece, cr, self.x() + dx, self.y() + dy)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{header::FULL_MASK, piece::Piece, rotation::Rotation};
+
+    #[test]
+    fn roundtrip() {
+        for piece in Piece::ALL {
+            for rotation in Rotation::ALL {
+                for x in 0..16 {
+                    for y in 0..4 {
+                        let m = Move::new(piece, rotation, x, y);
+                        assert_eq!(m.piece(), piece);
+                        assert_eq!(m.rotation(), rotation);
+                        assert_eq!(m.x(), x);
+                        assert_eq!(m.y(), y);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mask_reports_out_of_bounds() {
+        assert!(Move::new(Piece::T, Rotation::North, 5, 2).mask().is_some());
+        assert!(Move::new(Piece::T, Rotation::North, 9, 0).mask().is_none());
+        assert!(Move::new(Piece::T, Rotation::North, 0, 0).mask().is_none());
+        assert!(Move::new(Piece::T, Rotation::North, 5, 3).mask().is_none());
+    }
+
+    #[test]
+    fn mask_never_wraps() {
+        for piece in Piece::ALL {
+            for rotation in Rotation::ALL {
+                for x in 0..10 {
+                    for y in 0..4 {
+                        if let Some(mask) = Move::new(piece, rotation, x, y).mask() {
+                            assert_eq!(mask | FULL_MASK, FULL_MASK);
+                        }
+                    }
+                }
+            }
         }
     }
 }

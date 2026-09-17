@@ -42,10 +42,10 @@ pub const CELLS: [[Cells; Rotation::NB]; Piece::NB] = const {
     out
 };
 
-pub type PlaceMask = (u64, i8, i8);
+pub type PlaceMask = (u64, i8, i8, i8);
 
 pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
-    let mut out = [[(0u64, 0i8, 0i8); Rotation::NB]; Piece::NB];
+    let mut out = [[(0u64, 0i8, 0i8, 0i8); Rotation::NB]; Piece::NB];
     let pieces = [
         Piece::T,
         Piece::I,
@@ -69,6 +69,7 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
 
             let mut min_x = 0i32;
             let mut min_y = 0i32;
+            let mut max_x = 0i32;
             let mut max_y = 0i32;
             let mut i = 0;
             while i < 4 {
@@ -80,6 +81,9 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
                 if y < min_y {
                     min_y = y;
                 }
+                if x > max_x {
+                    max_x = x;
+                }
                 if y > max_y {
                     max_y = y;
                 }
@@ -88,6 +92,7 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
 
             let x_bias = -min_x;
             let height = max_y - min_y + 1;
+            let width = max_x - min_x + 1;
             let mut mask = 0u64;
             let mut i = 0;
             while i < 4 {
@@ -97,7 +102,7 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
                 i += 1;
             }
 
-            out[p][rc] = (mask, x_bias as i8, height as i8);
+            out[p][rc] = (mask, x_bias as i8, height as i8, width as i8);
             rc += 1;
         }
         p += 1;
@@ -106,23 +111,22 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
 };
 
 #[must_use]
-pub fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> Option<u64> {
+pub const fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> Option<u64> {
     let (ox, oy) = piece.canonical_offset(rotation);
     let canon = piece.canonical_rotation(rotation) as usize;
     let cx = x - ox;
     let cy = y - oy;
 
-    let (mask, x_bias, height) = PMASK[piece as usize][canon];
-    if cy < 0 || cy + i32::from(height) > LINES {
+    let (mask, x_bias, height, width) = PMASK[piece as usize][canon];
+    if cy < 0 || cy + height as i32 > LINES {
+        return None;
+    }
+    let left = cx - x_bias as i32;
+    if left < 0 || left + width as i32 > WIDTH {
         return None;
     }
     let shifted = mask << (cy * WIDTH) as u32;
-    let dx = cx - i32::from(x_bias);
-    Some(if dx >= 0 {
-        shifted << dx as u32
-    } else {
-        shifted >> (-dx) as u32
-    })
+    Some(shifted << left as u32)
 }
 
 /// A single kick wave for a rotation transition: up to 6 `(dx, dy)`
@@ -136,8 +140,8 @@ pub const NULL_KICK: K6 = ([(0, 0); 6], 0);
 macro_rules! kick {
     ($k:expr, $i:expr, $j:expr, $(($x:expr, $y:expr))*) => {{
         #![allow(unused)]
-        use Rotation::East as E;
         use Rotation::North as N;
+        use Rotation::East as E;
         use Rotation::South as S;
         use Rotation::West as W;
 
@@ -216,3 +220,73 @@ pub const KICKS_I: Kicks = {
 
     out
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::header::{FULL_MASK, LINES, WIDTH};
+
+    /// Direct cell-based placement model, independent of `PMASK`.
+    ///
+    /// Builds the mask from `CELLS`: the canonical cell at frame
+    /// position `(i, j)` occupies board column `cx + i` and board row
+    /// `cy + (j - min_y)`, with an explicit per-cell bounds check.
+    fn naive_place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> Option<u64> {
+        let canon = piece.canonical_rotation(rotation) as usize;
+        let (ox, oy) = piece.canonical_offset(rotation);
+        let cx = x - ox;
+        let cy = y - oy;
+
+        let three = CELLS[piece as usize][canon];
+        let cells = [(0i8, 0i8), three[0], three[1], three[2]];
+
+        let mut min_y = 0i32;
+        for (_, j) in cells {
+            min_y = min_y.min(i32::from(j));
+        }
+
+        let mut mask = 0u64;
+        for (i, j) in cells {
+            let row = cy + i32::from(j) - min_y;
+            let col = cx + i32::from(i);
+            if !(0..LINES).contains(&row) || !(0..WIDTH).contains(&col) {
+                return None;
+            }
+            mask |= 1u64 << (row * WIDTH + col) as u32;
+        }
+        Some(mask)
+    }
+
+    #[test]
+    fn place_mask_matches_cell_model() {
+        for piece in Piece::ALL {
+            for rotation in Rotation::ALL {
+                for x in -6..=16 {
+                    for y in -4..=6 {
+                        assert_eq!(
+                            place_mask(piece, rotation, x, y),
+                            naive_place_mask(piece, rotation, x, y),
+                            "piece={piece} rotation={rotation:?} x={x} y={y}",
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn place_mask_never_wraps_or_clips() {
+        for piece in Piece::ALL {
+            for rotation in Rotation::ALL {
+                for x in -6..=16 {
+                    for y in -4..=6 {
+                        let mask = place_mask(piece, rotation, x, y);
+                        let Some(mask) = mask else { continue };
+                        assert_eq!(mask.count_ones(), 4, "piece={piece} rotation={rotation:?} x={x} y={y}");
+                        assert_eq!(mask | FULL_MASK, FULL_MASK, "wrap outside 40-bit field: piece={piece} rotation={rotation:?} x={x} y={y}");
+                    }
+                }
+            }
+        }
+    }
+}

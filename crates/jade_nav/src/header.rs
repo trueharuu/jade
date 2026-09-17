@@ -41,6 +41,19 @@ pub const fn cols_below(n: i32) -> u64 {
     w
 }
 
+/// Mask covering rows `[0, n)`.
+#[inline]
+#[must_use]
+pub const fn rows_below(n: i32) -> u64 {
+    let mut w = 0u64;
+    let mut row = 0;
+    while row < n {
+        w |= row_word(row);
+        row += 1;
+    }
+    w
+}
+
 /// Mask that keeps only the bits that stay on-field after a horizontal
 /// shift by `dx` columns.
 #[inline]

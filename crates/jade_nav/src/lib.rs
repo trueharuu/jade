@@ -2,4 +2,5 @@
 #![feature(portable_simd)]
 
 pub mod header;
+pub mod movegen;
 pub mod plane;

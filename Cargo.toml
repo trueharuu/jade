@@ -1,9 +1,6 @@
-[package]
-name = "jade"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
+[workspace]
+resolver = "3"
+members = ["crates/jade_core"]
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = 1 }

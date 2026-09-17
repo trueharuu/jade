@@ -88,6 +88,8 @@ impl Move {
     }
 
     /// Returns the piece placement mask for this move.
+    #[inline]
+    #[must_use]
     pub const fn mask(self) -> u64 {
         todo!()
     }

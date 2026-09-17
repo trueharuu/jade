@@ -7,7 +7,3 @@ pub mod piece;
 pub mod rotation;
 pub mod data;
 pub mod placement;
-
-fn main() {
-    println!("Hello, world!");
-}

@@ -8,6 +8,8 @@ pub struct Batch<const N: usize>(pub Simd<u64, N>);
 
 impl<const N: usize> Batch<N> {
     /// An empty batch of `N` boards.
+    #[inline]
+    #[must_use]
     pub fn empty() -> Self {
         Self(Simd::splat(0))
     }
@@ -15,6 +17,8 @@ impl<const N: usize> Batch<N> {
     /// Shifts every board in the batch by the same `(dx, dy)` offset.
     ///
     /// `dy > 0` shifts up whilst `dy < 0` shifts down. `dx > 0` shifts right whilst `dx < 0` shifts left. Bits shifted past the top, bottom, left, or right edges are dropped.
+    #[inline]
+    #[must_use]
     pub fn shifted(&self, dx: i32, dy: i32) -> Self {
         let dy_shift = dy * WIDTH;
 

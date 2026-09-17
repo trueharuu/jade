@@ -1,0 +1,10 @@
+[package]
+name = "jade_nav"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jade_core = { path = "../jade_core" }
+
+[lints]
+workspace = true

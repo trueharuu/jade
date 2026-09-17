@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "jade_core"
 version = "0.1.0"
+
+[[package]]
+name = "jade_nav"
+version = "0.1.0"
+dependencies = [
+ "jade_core",
+]

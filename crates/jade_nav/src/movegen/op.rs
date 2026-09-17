@@ -5,6 +5,7 @@ use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
 
+use crate::header::frame_min_y;
 use crate::header::rows_below;
 use crate::header::LINES;
 use crate::header::WIDTH;
@@ -40,6 +41,7 @@ macro_rules! unroll {
 
 /// Origin positions where the `I`-th mino of `(P, R)` can be placed.
 ///
+/// Minos use the same normalized frame as `jade_core::data::place_mask`.
 /// A mino above the origin (positive `cy`) changes the usable result
 /// through the negated board. The result is restricted to origin rows
 /// that keep the mino inside the plane, since the plane top is the
@@ -51,17 +53,27 @@ pub fn usable_cell<const N: usize, const P: Piece, const R: usize, const I: usiz
     b: &Plane<N>,
     nb: &Plane<N>,
 ) -> Plane<N> {
-    let (cx, cy) = (
-        i32::from(CELLS[P as usize][R][I].0),
-        i32::from(CELLS[P as usize][R][I].1),
-    );
+    // `jade_core` places locks through normalized frames: a cell at raw
+    // offset `(x, y)` occupies board row `origin_row + (y - min_y)`.
+    // Reachability must use the same normalized offsets, or the locked
+    // mask will not match the piece that fell.
+    let my = frame_min_y(P as usize, R);
+    let cx = i32::from(CELLS[P as usize][R][I].0);
+    let cy = i32::from(CELLS[P as usize][R][I].1) - my;
+    usable_component(b, nb, cx, cy)
+}
 
-    if cy > 0 {
-        let free = !b.shifted(0, -cy);
-        let in_plane = Plane::splat(rows_below(LINES - cy));
-        (free & in_plane).shifted(-cx, 0)
-    } else {
-        nb.shifted(-cx, -cy)
+#[inline]
+#[must_use]
+fn usable_component<const N: usize>(b: &Plane<N>, nb: &Plane<N>, cx: i32, cy: i32) -> Plane<N> {
+    match cy {
+        1.. => {
+            let free = !b.shifted(0, -cy);
+            let in_plane = Plane::splat(rows_below(LINES - cy));
+            (free & in_plane).shifted(-cx, 0)
+        }
+        ..0 => nb.shifted(-cx, -cy),
+        0 => nb.shifted(-cx, 0),
     }
 }
 
@@ -73,7 +85,9 @@ pub fn usable_rot<const N: usize, const P: Piece, const R: usize>(
     b: &Plane<N>,
     nb: &Plane<N>,
 ) -> Plane<N> {
-    *nb
+    let my = frame_min_y(P as usize, R);
+    // The origin cell also normalizes: it occupies row `origin_row - min_y`.
+    usable_component(b, nb, 0, -my)
         & usable_cell::<N, P, R, 0>(b, nb)
         & usable_cell::<N, P, R, 1>(b, nb)
         & usable_cell::<N, P, R, 2>(b, nb)
@@ -279,12 +293,14 @@ pub fn check<const P: Piece>(b: &Plane<1>, x: i32, y: i32, r: usize) -> bool {
         return false;
     }
 
-    let lane = b.0[0];
+    let lanes = b.0.to_array();
+    let lane = lanes[0];
+    let my = frame_min_y(P as usize, rc);
     let cells = [
-        (0i32, 0i32),
-        (i32::from(CELLS[P as usize][rc][0].0), i32::from(CELLS[P as usize][rc][0].1)),
-        (i32::from(CELLS[P as usize][rc][1].0), i32::from(CELLS[P as usize][rc][1].1)),
-        (i32::from(CELLS[P as usize][rc][2].0), i32::from(CELLS[P as usize][rc][2].1)),
+        (0i32, -my),
+        (i32::from(CELLS[P as usize][rc][0].0), i32::from(CELLS[P as usize][rc][0].1) - my),
+        (i32::from(CELLS[P as usize][rc][1].0), i32::from(CELLS[P as usize][rc][1].1) - my),
+        (i32::from(CELLS[P as usize][rc][2].0), i32::from(CELLS[P as usize][rc][2].1) - my),
     ];
 
     for (dx, dy) in cells {
@@ -310,6 +326,13 @@ pub fn check_fast<const P: Piece>(
     y: i32,
     r: usize,
 ) -> bool {
+    // The origin itself must be inside the 6-row working plane, not
+    // just the canonical frame. Without this, kicks with negative dy
+    // produce raw y that wraps silently in `Move::new`.
+    if !(0..WIDTH).contains(&x) || !(0..LINES).contains(&y) {
+        return false;
+    }
+
     let rot = Rotation::from_u8(r as u8);
     let (dx, dy) = P.canonical_offset(rot);
     let rc = P.canonical_rotation(rot) as usize;

@@ -68,6 +68,28 @@ pub const fn dx_mask(dx: i32) -> u64 {
     }
 }
 
+/// Lowest row of the `(p, r)` frame relative to its origin.
+///
+/// The placement model in `jade_core` normalizes every canonical frame
+/// so that the lowest cell in the frame sits at the frame's bottom row.
+/// An origin at row `cy` therefore places its cells at rows
+/// `cy + (j - min_y)`.
+#[inline]
+#[must_use]
+pub const fn frame_min_y(p: usize, r: usize) -> i32 {
+    let three = CELLS[p][r];
+    let mut mn = 0i32;
+    let mut i = 0;
+    while i < 3 {
+        let y = three[i].1 as i32;
+        if y < mn {
+            mn = y;
+        }
+        i += 1;
+    }
+    mn
+}
+
 /// Allowed locked-origin rows per `(piece, rotation)`, in the 60-bit
 /// plane. A locked origin at row `cy` and column `cx` is valid only
 /// when every placed cell sits in rows 0 to 3.

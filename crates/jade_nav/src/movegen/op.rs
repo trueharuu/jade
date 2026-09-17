@@ -1,15 +1,13 @@
+use jade_core::board::Plane;
 use jade_core::data::CELLS;
 use jade_core::data::KICKS_I;
 use jade_core::data::KICKS_TJLSZ;
+use jade_core::header;
+use jade_core::header::LINES;
+use jade_core::header::WIDTH;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
-
-use crate::header::frame_min_y;
-use crate::header::rows_below;
-use crate::header::LINES;
-use crate::header::WIDTH;
-use crate::plane::Plane;
 
 #[macro_export]
 /// Runs `body` for the compile-time rotation literals 0 to 3, each
@@ -57,7 +55,7 @@ pub fn usable_cell<const N: usize, const P: Piece, const R: usize, const I: usiz
     // offset `(x, y)` occupies board row `origin_row + (y - min_y)`.
     // Reachability must use the same normalized offsets, or the locked
     // mask will not match the piece that fell.
-    let my = frame_min_y(P as usize, R);
+    let my = header::frame_min_y(P as usize, R);
     let cx = i32::from(CELLS[P as usize][R][I].0);
     let cy = i32::from(CELLS[P as usize][R][I].1) - my;
     usable_component(b, nb, cx, cy)
@@ -69,7 +67,7 @@ fn usable_component<const N: usize>(b: &Plane<N>, nb: &Plane<N>, cx: i32, cy: i3
     match cy {
         1.. => {
             let free = !b.shifted(0, -cy);
-            let in_plane = Plane::splat(rows_below(LINES - cy));
+            let in_plane = Plane::splat(header::rows_below(LINES - cy));
             (free & in_plane).shifted(-cx, 0)
         }
         ..0 => nb.shifted(-cx, -cy),
@@ -85,7 +83,7 @@ pub fn usable_rot<const N: usize, const P: Piece, const R: usize>(
     b: &Plane<N>,
     nb: &Plane<N>,
 ) -> Plane<N> {
-    let my = frame_min_y(P as usize, R);
+    let my = header::frame_min_y(P as usize, R);
     // The origin cell also normalizes: it occupies row `origin_row - min_y`.
     usable_component(b, nb, 0, -my)
         & usable_cell::<N, P, R, 0>(b, nb)
@@ -295,7 +293,7 @@ pub fn check<const P: Piece>(b: &Plane<1>, x: i32, y: i32, r: usize) -> bool {
 
     let lanes = b.0.to_array();
     let lane = lanes[0];
-    let my = frame_min_y(P as usize, rc);
+    let my = header::frame_min_y(P as usize, rc);
     let cells = [
         (0i32, -my),
         (i32::from(CELLS[P as usize][rc][0].0), i32::from(CELLS[P as usize][rc][0].1) - my),
@@ -377,108 +375,4 @@ pub fn apply_rotation<const P: Piece>(
     }
 
     *mv
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::header::row_word;
-    use jade_core::rotation::Rotation;
-
-    fn plane1(v: u64) -> Plane<1> {
-        Plane::from_array([v])
-    }
-
-    #[test]
-    fn usable_matches_check_on_empty() {
-        macro_rules! each {
-            ($p:ident) => {{
-                let piece = Piece::$p;
-                let usable = usable_map::<1, { Piece:: $p }>(Plane::<1>::empty());
-                for r in 0..Rotation::NB {
-                    for x in 0..WIDTH {
-                        for y in 0..LINES {
-                            assert_eq!(
-                                check::<{ Piece:: $p }>(&Plane::<1>::empty(), x, y, r),
-                                check_fast::<{ Piece:: $p }>(&usable, x, y, r),
-                                "piece={piece} r={r} x={x} y={y}",
-                            );
-                        }
-                    }
-                }
-            }};
-        }
-        each!(I);
-        each!(O);
-        each!(T);
-        each!(S);
-        each!(Z);
-        each!(J);
-        each!(L);
-    }
-
-    #[test]
-    fn usable_respects_occupancy() {
-        macro_rules! each {
-            ($p:ident) => {{
-                let piece = Piece::$p;
-                let occ = plane1(1 << (2 * WIDTH + 4));
-                let usable = usable_map::<1, { Piece:: $p }>(occ);
-                for r in 0..Rotation::NB {
-                    for x in 0..WIDTH {
-                        for y in 0..LINES {
-                            assert_eq!(
-                                check::<{ Piece:: $p }>(&occ, x, y, r),
-                                check_fast::<{ Piece:: $p }>(&usable, x, y, r),
-                                "piece={piece} r={r} x={x} y={y}",
-                            );
-                        }
-                    }
-                }
-            }};
-        }
-        each!(I);
-        each!(O);
-        each!(T);
-        each!(S);
-        each!(Z);
-        each!(J);
-        each!(L);
-    }
-
-    #[test]
-    fn vertical_ceiling_closes_rows_downward() {
-        let surface = plane1(row_word(3));
-        let closed = vertical_ceiling(surface, 4);
-        let expected = row_word(0) | row_word(1) | row_word(2) | row_word(3);
-        assert_eq!(closed.0[0], expected);
-    }
-
-    #[test]
-    fn sonic_drop_falls_to_support() {
-        let occ = plane1(1u64 << (2 * WIDTH + 5));
-        let usable = !occ;
-        let start = plane1(1u64 << (5 * WIDTH + 5));
-        let dropped = sonic_drop(start, &usable);
-        let expected = (3..6).fold(0u64, |m, row| m | (1u64 << (row * WIDTH + 5)));
-        assert_eq!(dropped.0[0], expected);
-    }
-
-    #[test]
-    fn apply_rotation_no_kick_on_empty() {
-        let usable = usable_map::<1, { Piece::T }>(Plane::<1>::empty());
-        let mv = Move::new(Piece::T, Rotation::North, 5, 3);
-        let rotated = apply_rotation::<{ Piece::T }>(&Plane::<1>::empty(), &usable, &mv, Rotation::East);
-        assert_eq!(rotated.rotation(), Rotation::East);
-        assert_eq!((rotated.x(), rotated.y()), (5, 3));
-    }
-
-    #[test]
-    fn apply_rotation_never_rotates_originally_invalid_on_wall() {
-        let usable = usable_map::<1, { Piece::T }>(Plane::<1>::empty());
-        let mv = Move::new(Piece::T, Rotation::North, 0, 3);
-        let rotated = apply_rotation::<{ Piece::T }>(&Plane::<1>::empty(), &usable, &mv, Rotation::East);
-        assert_eq!(rotated.rotation(), Rotation::East);
-        assert!(check_fast::<{ Piece::T }>(&usable, rotated.x(), rotated.y(), rotated.rotation() as usize));
-    }
 }

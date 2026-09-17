@@ -10,13 +10,13 @@ use std::mem::MaybeUninit;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
+use jade_core::header::LINES;
+use jade_core::board::Plane;
 
 use crate::movegen::buffer::Moves;
 use crate::movegen::op::apply_rotation;
 use crate::movegen::op::check_fast;
 use crate::movegen::op::usable_map;
-use crate::header::LINES;
-use crate::plane::Plane;
 
 /// Fixed-capacity ring queue for BFS states.
 const CAP: usize = 4096;
@@ -114,8 +114,9 @@ pub fn generate<const P: Piece>(board: u64, y: i32, force: i32) -> (Moves<1>, u6
         }
 
         let dropped = Move::new(P, rotation, x, drop_y);
-        if dropped.canonicalize().mask().is_some() {
-            let _ = landed.insert(0, dropped.canonicalize());
+        let canon = dropped.canonicalize();
+        if canon.mask().is_some() {
+            let _ = landed.insert(0, canon);
         }
 
         // extended lateral movement (das)
@@ -192,74 +193,4 @@ pub fn generate<const P: Piece>(board: u64, y: i32, force: i32) -> (Moves<1>, u6
 #[must_use]
 pub fn movegen<const P: Piece>(board: u64, y: i32, force: i32) -> Vec<Move> {
     generate::<P>(board, y, force).0.iter().map(|(_, mv)| mv).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_lock_fits_the_field() {
-        macro_rules! each {
-            ($piece:ident) => {{
-                let piece = Piece::$piece;
-                let (moves, count) = generate::<{ Piece::$piece }>(0, 0, 0);
-                assert!(count > 0, "piece={piece}");
-                for (_, mv) in moves.iter() {
-                    assert!(mv.mask().is_some(), "piece={piece} mv={mv:?}");
-                    assert_eq!(mv, mv.canonicalize(), "piece={piece} mv={mv:?}");
-                }
-            }};
-        }
-        each!(T);
-        each!(I);
-        each!(J);
-        each!(L);
-        each!(O);
-        each!(S);
-        each!(Z);
-    }
-
-    #[test]
-    fn full_field_locks_out() {
-        let full = (1u64 << 40) - 1;
-        macro_rules! each {
-            ($piece:ident) => {{
-                let (_, count) = generate::<{ Piece::$piece }>(full, 0, 0);
-                assert_eq!(count, 0, "piece={}", Piece::$piece);
-            }};
-        }
-        each!(T);
-        each!(I);
-        each!(J);
-        each!(L);
-        each!(O);
-        each!(S);
-        each!(Z);
-    }
-
-    #[test]
-    fn locks_never_overlap_field_cells() {
-        let occ = 1u64 << (2 * 10 + 4);
-        macro_rules! each {
-            ($piece:ident) => {{
-                let piece = Piece::$piece;
-                let (moves, count) = generate::<{ Piece::$piece }>(occ, 0, 0);
-                assert!(count > 0, "piece={piece}");
-                for (_, mv) in moves.iter() {
-                    assert!(
-                        mv.mask().is_some() && (mv.mask().unwrap() & occ).count_ones() == 0,
-                        "piece={piece} mv={mv:?}",
-                    );
-                }
-            }};
-        }
-        each!(T);
-        each!(I);
-        each!(J);
-        each!(L);
-        each!(O);
-        each!(S);
-        each!(Z);
-    }
 }

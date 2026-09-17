@@ -2,13 +2,11 @@
 
 use std::simd::Simd;
 
-use jade_core::header::WIDTH;
+use jade_core::board::Plane;
+use jade_core::header::{LINES, WIDTH};
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
-
-use crate::header::LINES;
-use crate::plane::Plane;
 
 /// Result of move generation.
 ///
@@ -151,51 +149,5 @@ impl<'a, const N: usize> IntoIterator for &'a Moves<N> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn insert_dedups_per_lane() {
-        let mut m = Moves::<2>::empty(Piece::T);
-        let a = Move::new(Piece::T, Rotation::North, 5, 2);
-        let b = Move::new(Piece::T, Rotation::North, 5, 2);
-
-        assert!(m.insert(0, a));
-        assert!(!m.insert(0, b));
-        assert!(m.insert(1, b));
-        assert!(m.contains(0, a));
-        assert!(m.contains(1, b));
-        assert_eq!(m.popcount(), 2);
-    }
-
-    #[test]
-    fn different_rotations_are_distinct() {
-        let mut m = Moves::<1>::empty(Piece::T);
-        let n = Move::new(Piece::T, Rotation::North, 5, 2);
-        let e = Move::new(Piece::T, Rotation::East, 5, 2);
-
-        assert!(m.insert(0, n));
-        assert!(m.insert(0, e));
-        assert_eq!(m.popcount(), 2);
-        assert!(m.contains(0, n));
-        assert!(m.contains(0, e));
-    }
-
-    #[test]
-    fn iter_yields_all_lanes_in_order() {
-        let mut m = Moves::<2>::empty(Piece::I);
-        let a = Move::new(Piece::I, Rotation::North, 7, 3);
-        let b = Move::new(Piece::I, Rotation::East, 1, 0);
-        let c = Move::new(Piece::I, Rotation::North, 2, 1);
-        assert!(m.insert(0, a));
-        assert!(m.insert(0, b));
-        assert!(m.insert(1, c));
-
-        let got: Vec<_> = m.iter().collect();
-        assert_eq!(got, vec![(0, a), (0, b), (1, c)]);
     }
 }

@@ -1,7 +1,7 @@
 use crate::{piece::Piece, rotation::Rotation};
 
 // x=0..9 (4 bits)
-// y=0..3 (2 bits)
+// y=0..7 (3 bits)
 // rotation=0..3 (2 bits)
 // piece=0..6 (3 bits)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -10,10 +10,10 @@ pub struct Move(u16);
 const PIECE_SHIFT: u16 = 0;
 const X_SHIFT: u16 = 3;
 const Y_SHIFT: u16 = 3 + 4;
-const ROT_SHIFT: u16 = 3 + 4 + 2;
+const ROT_SHIFT: u16 = 3 + 4 + 3;
 const PIECE_MASK: u16 = 0b111;
 const X_MASK: u16 = 0b1111;
-const Y_MASK: u16 = 0b11;
+const Y_MASK: u16 = 0b111;
 const ROT_MASK: u16 = 0b11;
 
 impl Move {
@@ -112,7 +112,7 @@ impl Move {
             self
         } else {
             let (dx, dy) = piece.canonical_offset(r);
-            Self::new(piece, cr, self.x() + dx, self.y() + dy)
+            Self::new(piece, cr, self.x().saturating_sub(dx), self.y().saturating_sub(dy))
         }
     }
 }
@@ -127,7 +127,7 @@ mod tests {
         for piece in Piece::ALL {
             for rotation in Rotation::ALL {
                 for x in 0..16 {
-                    for y in 0..4 {
+                    for y in 0..8 {
                         let m = Move::new(piece, rotation, x, y);
                         assert_eq!(m.piece(), piece);
                         assert_eq!(m.rotation(), rotation);
@@ -152,9 +152,26 @@ mod tests {
         for piece in Piece::ALL {
             for rotation in Rotation::ALL {
                 for x in 0..10 {
-                    for y in 0..4 {
+                    for y in 0..8 {
                         if let Some(mask) = Move::new(piece, rotation, x, y).mask() {
                             assert_eq!(mask | FULL_MASK, FULL_MASK);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn canonicalize_matches_place_mask() {
+        for piece in Piece::ALL {
+            for rotation in Rotation::ALL {
+                for x in 0..10 {
+                    for y in 0..8 {
+                        let m = Move::new(piece, rotation, x, y);
+                        let c = m.canonicalize();
+                        if m.mask().is_some() {
+                            assert_eq!(c.mask(), m.mask());
                         }
                     }
                 }

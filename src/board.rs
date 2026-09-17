@@ -1,84 +1,35 @@
-use crate::header::{BOARD_MASK, HEIGHT, ROW0, ROW9, WIDTH, row_span_mask};
+use std::{cmp::Ordering, simd::Simd};
 
-/// A 10x4 row-major bitboard, with the highest 24 bits unset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Board(u64);
+use crate::header::{self, WIDTH};
 
-impl Board {
-    /// Creates a new, empty board.
-    #[inline]
-    #[must_use]
-    pub const fn empty() -> Self {
-        Board(0)
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(transparent)]
+pub struct Batch<const N: usize>(pub Simd<u64, N>);
+
+impl<const N: usize> Batch<N> {
+    /// An empty batch of `N` boards.
+    pub fn empty() -> Self {
+        Self(Simd::splat(0))
     }
 
-    /// Retrieves the bit at `(x, y)`.
-    #[inline]
-    #[must_use]
-    pub const fn get(&self, x: u32, y: u32) -> bool {
-        assert!(x < WIDTH && y < HEIGHT);
-        (self.0 & (1 << (y * WIDTH + x))) != 0
-    }
+    /// Shifts every board in the batch by the same `(dx, dy)` offset.
+    ///
+    /// `dy > 0` shifts up whilst `dy < 0` shifts down. `dx > 0` shifts right whilst `dx < 0` shifts left. Bits shifted past the top, bottom, left, or right edges are dropped.
+    pub fn shifted(&self, dx: i32, dy: i32) -> Self {
+        let dy_shift = dy * WIDTH;
 
-    /// Sets the bit at `(x, y)` to 1.
-    #[inline]
-    pub const fn set(&mut self, x: u32, y: u32) {
-        assert!(x < WIDTH && y < HEIGHT);
-        self.0 |= 1 << (y * WIDTH + x);
-    }
-
-    /// Clears the bit at `(x, y)` to 0.
-    #[inline]
-    pub const fn clear(&mut self, x: u32, y: u32) {
-        assert!(x < WIDTH && y < HEIGHT);
-        self.0 &= !(1 << (y * WIDTH + x));
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn shifted(&self, dx: i32, dy: i32) -> Self {
-        let mut result = if dy >= 0 {
-            self.0 << (dy as u32 * WIDTH)
-        } else {
-            self.0 >> (-dy as u32 * WIDTH)
+        let v_shift = match dy_shift.cmp(&0) {
+            Ordering::Equal => self.0,
+            Ordering::Greater => self.0 << Simd::splat(dy_shift as u64),
+            Ordering::Less => self.0 >> Simd::splat((-dy_shift) as u64),
         };
 
-        if dx != 0 {
-            result = if dx > 0 {
-                result << (dx as usize)
-            } else {
-                result >> (-dx as usize)
-            };
+        let result = match dx.cmp(&0) {
+            Ordering::Equal => v_shift,
+            Ordering::Greater => v_shift << Simd::splat(dx as u64),
+            Ordering::Less => v_shift >> Simd::splat((-dx) as u64),
+        } & Simd::splat(header::dx_mask(dx));
 
-            result &= row_span_mask(dx);
-        }
-
-        Self(result & BOARD_MASK)
-    }
-
-    /// Returns a column mask selecting full lines.
-    #[inline]
-    #[must_use]
-    pub const fn line_clears(&self) -> Self {
-        let d = self.0;
-        let summed = (d & !ROW9) + ROW0;
-        Self(d & summed & ROW9)
-    }
-
-    /// Moves all lines flagged in `lines`, compacting them downwards.
-    pub const fn clearshift(&mut self, lines: Self) {
-        let mut d = self.0;
-        let mut clears = lines.0;
-
-        while clears != 0 {
-            let y = clears.trailing_zeros();
-
-            let below = (1u64 << y) - 1;
-            d = (d & below) | ((d >> HEIGHT) & !below);
-
-            clears >>= HEIGHT;
-        }
-
-        self.0 = d;
+        Self(result)
     }
 }

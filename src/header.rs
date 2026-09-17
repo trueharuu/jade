@@ -1,45 +1,40 @@
-pub const WIDTH: u32 = 10;
-/// Working rows of the field.
-pub const HEIGHT: u32 = 4;
-/// Rows per band of the banded bitboard. A placement never crosses a band.
-pub const TLINES: u32 = 6;
-/// Bits in one band element.
-pub const BOARD_BITS: u32 = WIDTH * TLINES;
-pub const ROW_MASK: u64 = (1 << WIDTH) - 1;
-pub const BOARD_MASK: u64 = (1 << BOARD_BITS) - 1;
+pub const WIDTH: i32 = 10;
+pub const LINES: i32 = 4;
+pub const TOTAL_BITS: u32 = (WIDTH * LINES) as u32;
+pub const FULL_MASK: u64 = (1u64 << TOTAL_BITS) - 1;
 
-#[inline]
-#[must_use]
-pub const fn row_span_mask(dx: i32) -> u64 {
-    let row_bits = if dx < 0 {
-        ROW_MASK >> (-dx as usize)
-    } else {
-        ROW_MASK << (dx as usize)
-    } & ROW_MASK;
-
-    let mut m = 0;
-    let mut r = 0;
-    while r < HEIGHT {
-        m |= row_bits << (r * WIDTH);
-        r += 1;
+pub const fn col_word(x: i32) -> u64 {
+    let mut w = 0u64;
+    let mut row = 0;
+    while row < LINES {
+        w |= 1u64 << (row * WIDTH + x);
+        row += 1;
     }
 
-    m
+    w
 }
 
-pub const ROW0: u64 = {
-    // bit 0 of every row
-    let mut m = 0u64;
-    let mut r = 0u32;
-    while r < HEIGHT { m |= 1u64 << (r * WIDTH); r += 1; }
-    m
-};
+/// Mask covering columns `[0, n)`.
+pub const fn cols_below(n: i32) -> u64 {
+    let mut w = 0u64;
+    let mut c = 0;
+    while c < n {
+        w |= col_word(c);
+        c += 1;
+    }
 
-pub const ROW9: u64 = {
-    // bit (WIDTH-1) of every row
-    let mut m = 0u64;
-    let mut r = 0u32;
-    while r < HEIGHT { m |= 1u64 << (r * WIDTH + WIDTH - 1); r += 1; }
-    m
-};
+    w
+}
 
+/// Mask that keeps only the bits that stay on-board after a
+/// horizontal shift by `dx` columns. Without this, a shift would wrap
+/// a piece around the left or right wall into the opposite edge.
+pub const fn dx_mask(dx: i32) -> u64 {
+    if dx > 0 {
+        FULL_MASK & !cols_below(dx)
+    } else if dx < 0 {
+        FULL_MASK & !(cols_below(-dx) << (WIDTH + dx) as u32)
+    } else {
+        FULL_MASK
+    }
+}

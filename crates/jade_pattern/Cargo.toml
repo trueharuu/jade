@@ -1,0 +1,11 @@
+[package]
+name = "jade_pattern"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+itertools = "0.15.0"
+jade_core = { version = "0.1.0", path = "../jade_core" }
+
+[lints]
+workspace = true

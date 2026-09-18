@@ -7,3 +7,4 @@ pub mod piece;
 pub mod rotation;
 pub mod data;
 pub mod placement;
+pub mod render;

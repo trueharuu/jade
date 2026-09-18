@@ -1,11 +1,17 @@
 use std::cmp::Ordering;
-use std::ops::{
-    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not,
-};
-use std::simd::num::SimdUint;
+use std::ops::BitAnd;
+use std::ops::BitAndAssign;
+use std::ops::BitOr;
+use std::ops::BitOrAssign;
+use std::ops::BitXor;
+use std::ops::BitXorAssign;
+use std::ops::Not;
 use std::simd::Simd;
+use std::simd::num::SimdUint;
 
-use crate::header::{dx_mask, MASK, WIDTH};
+use crate::header::MASK;
+use crate::header::WIDTH;
+use crate::header::dx_mask;
 
 /// A set of `N` independent 6-row working fields, one per lane.
 ///
@@ -83,17 +89,54 @@ impl<const N: usize> Plane<N> {
         Self(out)
     }
 
-    /// Reads the bit at cell `(x, y)` of lane 0.
+    /// Returns whether the cell at `(x, y)` in lane `lane` is set.
     #[inline]
     #[must_use]
-    pub fn get(&self, x: i32, y: i32) -> bool {
-        (self.0[0] >> (y * WIDTH + x) as u32) & 1 == 1
+    pub fn get(&self, lane: usize, x: i32, y: i32) -> bool {
+        debug_assert!(lane < N, "lane {lane} out of bounds for Plane<{N}>");
+        debug_assert!((0..WIDTH).contains(&x), "x {x} out of bounds for Plane<{N}>");
+        debug_assert!((0..6).contains(&y), "y {y} out of bounds for Plane<{N}>");
+        let bit = 1u64 << (y * 10 + x) as u32;
+        self.0[lane] & bit != 0
     }
 
-    /// Sets the bit at cell `(x, y)` in every lane.
+    /// Returns a bit-vector of all lanes that have the cell at `(x, y)` set.
     #[inline]
-    pub fn set(&mut self, x: i32, y: i32) {
-        self.0 |= Simd::splat(1u64 << (y * WIDTH + x) as u32);
+    #[must_use]
+    pub fn get_many(&self, x: i32, y: i32) -> Simd<u64, N> {
+        let bit = 1u64 << (y * 10 + x) as u32;
+        self.0 & Simd::splat(bit)
+    }
+
+    /// Sets the cell `(x, y)` in lane `lane`.
+    #[inline]
+    pub fn set(&mut self, lane: usize, x: i32, y: i32) {
+        let bit = 1u64 << (y * 10 + x) as u32;
+        self.0[lane] |= bit;
+    }
+
+    /// Sets the cell `(x, y)` for all lanes in the bit-vector `mask`.
+    #[inline]
+    pub fn set_many(&mut self, mask: u64, x: i32, y: i32) {
+        for i in 0..N {
+            if (mask >> i) & 1 != 0 {
+                let bit = 1u64 << (y * 10 + x) as u32;
+                self.0[i] |= bit;
+            }
+        }
+    }
+
+    /// Returns the occupied height of lane `lane`, or `0` if it is empty.
+    #[inline]
+    #[must_use]
+    pub fn height(&self, lane: usize) -> i32 {
+        let bits = self.0[lane];
+        if bits != 0 {
+            let idx = 64 - 1 - bits.leading_zeros() as i32;
+            return idx / WIDTH + 1;
+        }
+
+        0
     }
 }
 

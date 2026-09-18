@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/jade_core", "crates/jade_nav"]
+members = [
+    "crates/jade_cli",
+    "crates/jade_core",
+    "crates/jade_pattern",
+    "crates/sandbox",
+]
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = 1 }

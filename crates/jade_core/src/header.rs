@@ -1,4 +1,6 @@
-use crate::{data::CELLS, piece::Piece, rotation::Rotation};
+use crate::data::CELLS;
+use crate::piece::Piece;
+use crate::rotation::Rotation;
 
 pub const WIDTH: i32 = 10;
 pub const LINES: i32 = 6;

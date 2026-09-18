@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::ops::BitAnd;
 use std::ops::BitAndAssign;
 use std::ops::BitOr;
@@ -6,63 +5,34 @@ use std::ops::BitOrAssign;
 use std::ops::BitXor;
 use std::ops::BitXorAssign;
 use std::ops::Not;
-use std::simd::Simd;
-use std::simd::num::SimdUint;
 
-use crate::header::MASK;
 use crate::header::WIDTH;
 use crate::header::dx_mask;
 
-/// A set of `N` independent 6-row working fields, one per lane.
-///
-/// Each lane is a 60-bit field, bit index `y * 10 + x`, row 0 at the
-/// bottom. In move generation a lane is one working field. Lanes never
-/// interact.
+/// A single, row-major, 10x6 bitboard.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[repr(transparent)]
-pub struct Plane<const N: usize>(pub Simd<u64, N>);
+pub struct Board(u64);
 
-impl<const N: usize> Plane<N> {
-    /// An empty plane in every lane.
+impl Board {
+    /// Returns an empty [`Board`].
     #[inline]
     #[must_use]
     pub const fn empty() -> Self {
-        Self(Simd::splat(0))
+        Self(0)
     }
 
-    /// A plane with the same 60-bit value in every lane.
+    /// Creates a [`Board`] from its raw 64-bit representation.
     #[inline]
     #[must_use]
-    pub fn splat(value: u64) -> Self {
-        Self(Simd::splat(value))
+    pub const fn new(raw: u64) -> Self {
+        Self(raw)
     }
 
-    /// Loads one distinct plane per lane.
+    /// Returns the total number of filled cells in the board.
     #[inline]
     #[must_use]
-    pub fn from_array(planes: [u64; N]) -> Self {
-        Self(Simd::from_array(planes))
-    }
-
-    /// Extracts every lane.
-    #[inline]
-    #[must_use]
-    pub fn to_array(self) -> [u64; N] {
-        self.0.to_array()
-    }
-
-    /// Returns `true` when any lane has any bit set.
-    #[inline]
-    #[must_use]
-    pub fn any(self) -> bool {
-        self.0.reduce_or() != 0
-    }
-
-    /// Counts set bits across all lanes.
-    #[inline]
-    #[must_use]
-    pub fn popcount(self) -> u64 {
-        self.0.count_ones().reduce_sum()
+    pub const fn popcount(self) -> u32 {
+        self.0.count_ones()
     }
 
     /// Shifts every lane by `(dx, dy)`.
@@ -71,68 +41,48 @@ impl<const N: usize> Plane<N> {
     /// `dx < 0` shifts left. Bits shifted past an edge are dropped.
     #[inline]
     #[must_use]
-    pub fn shifted(&self, dx: i32, dy: i32) -> Self {
+    pub const fn shifted(&self, dx: i32, dy: i32) -> Self {
         let dy_shift = dy * 10;
 
-        let v = match dy_shift.cmp(&0) {
-            Ordering::Equal => self.0,
-            Ordering::Greater => self.0 << Simd::splat(dy_shift as u64),
-            Ordering::Less => self.0 >> Simd::splat((-dy_shift) as u64),
+        let v = if dy_shift == 0 {
+            self.0
+        } else if dy_shift > 0 {
+            self.0 << dy_shift
+        } else {
+            self.0 >> (-dy_shift)
         };
 
-        let out = match dx.cmp(&0) {
-            Ordering::Equal => v,
-            Ordering::Greater => v << Simd::splat(dx as u64),
-            Ordering::Less => v >> Simd::splat((-dx) as u64),
-        } & Simd::splat(dx_mask(dx));
+        let out = if dx == 0 {
+            v
+        } else if dx > 0 {
+            v << dx as u64
+        } else {
+            v >> (-dx) as u64
+        } & dx_mask(dx);
 
         Self(out)
     }
 
-    /// Returns whether the cell at `(x, y)` in lane `lane` is set.
+    /// Returns whether the cell at `(x, y)` is set.
     #[inline]
     #[must_use]
-    pub fn get(&self, lane: usize, x: i32, y: i32) -> bool {
-        debug_assert!(lane < N, "lane {lane} out of bounds for Plane<{N}>");
-        debug_assert!((0..WIDTH).contains(&x), "x {x} out of bounds for Plane<{N}>");
-        debug_assert!((0..6).contains(&y), "y {y} out of bounds for Plane<{N}>");
+    pub const fn get(&self, x: i32, y: i32) -> bool {
         let bit = 1u64 << (y * 10 + x) as u32;
-        self.0[lane] & bit != 0
-    }
-
-    /// Returns a bit-vector of all lanes that have the cell at `(x, y)` set.
-    #[inline]
-    #[must_use]
-    pub fn get_many(&self, x: i32, y: i32) -> Simd<u64, N> {
-        let bit = 1u64 << (y * 10 + x) as u32;
-        self.0 & Simd::splat(bit)
+        self.0 & bit != 0
     }
 
     /// Sets the cell `(x, y)` in lane `lane`.
     #[inline]
-    pub fn set(&mut self, lane: usize, x: i32, y: i32) {
-        let bit = 1u64 << (y * 10 + x) as u32;
-        self.0[lane] |= bit;
-    }
-
-    /// Sets the cell `(x, y)` for all lanes in the bit-vector `mask`.
-    #[inline]
-    pub fn set_many(&mut self, mask: u64, x: i32, y: i32) {
-        for i in 0..N {
-            if (mask >> i) & 1 != 0 {
-                let bit = 1u64 << (y * 10 + x) as u32;
-                self.0[i] |= bit;
-            }
-        }
+    pub const fn set(&mut self, x: i32, y: i32) {
+        self.0 |= 1u64 << (y * 10 + x) as u32;
     }
 
     /// Returns the occupied height of lane `lane`, or `0` if it is empty.
     #[inline]
     #[must_use]
-    pub fn height(&self, lane: usize) -> i32 {
-        let bits = self.0[lane];
-        if bits != 0 {
-            let idx = 64 - 1 - bits.leading_zeros() as i32;
+    pub const fn height(&self) -> i32 {
+        if self.0 != 0 {
+            let idx = 64 - 1 - self.0.leading_zeros() as i32;
             return idx / WIDTH + 1;
         }
 
@@ -140,7 +90,7 @@ impl<const N: usize> Plane<N> {
     }
 }
 
-impl<const N: usize> BitAnd for Plane<N> {
+impl BitAnd for Board {
     type Output = Self;
 
     #[inline]
@@ -149,7 +99,7 @@ impl<const N: usize> BitAnd for Plane<N> {
     }
 }
 
-impl<const N: usize> BitOr for Plane<N> {
+impl BitOr for Board {
     type Output = Self;
 
     #[inline]
@@ -158,7 +108,7 @@ impl<const N: usize> BitOr for Plane<N> {
     }
 }
 
-impl<const N: usize> BitXor for Plane<N> {
+impl BitXor for Board {
     type Output = Self;
 
     #[inline]
@@ -167,32 +117,38 @@ impl<const N: usize> BitXor for Plane<N> {
     }
 }
 
-impl<const N: usize> BitAndAssign for Plane<N> {
+impl BitAndAssign for Board {
     #[inline]
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0;
     }
 }
 
-impl<const N: usize> BitOrAssign for Plane<N> {
+impl BitOrAssign for Board {
     #[inline]
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0;
     }
 }
 
-impl<const N: usize> BitXorAssign for Plane<N> {
+impl BitXorAssign for Board {
     #[inline]
     fn bitxor_assign(&mut self, rhs: Self) {
         self.0 ^= rhs.0;
     }
 }
 
-impl<const N: usize> Not for Plane<N> {
+impl Not for Board {
     type Output = Self;
 
     #[inline]
     fn not(self) -> Self::Output {
-        Self(Simd::splat(MASK) & !self.0)
+        Self(!self.0)
+    }
+}
+
+impl From<u64> for Board {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }

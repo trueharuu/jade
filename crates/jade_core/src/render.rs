@@ -1,6 +1,7 @@
 //! Rendering utilities.
 
-use crate::board::Plane;
+use crate::board::Board;
+use crate::header::LINES;
 use crate::header::WIDTH;
 use crate::piece::Piece;
 use crate::placement::Move;
@@ -38,16 +39,16 @@ pub fn cell(piece: Piece, i: &str) -> String {
 /// Renders a single board.
 #[inline]
 #[must_use]
-pub fn board(board: &Plane<1>) -> String {
+pub fn board(board: &Board) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
     s.push_str(&"─".repeat(WIDTH as usize * 2));
     s.push_str(TOP_RIGHT);
     s.push('\n');
-    for y in (0..(board.height(0) + 2).max(6)).rev() {
+    for y in (0..(board.height() + 2).max(6)).rev() {
         s.push_str(BAR);
         for x in 0..WIDTH {
-            s.push_str(if board.get(0, x, y) { CELL } else { EMPTY });
+            s.push_str(if board.get(x, y) { CELL } else { EMPTY });
         }
         s.push_str(BAR);
         s.push('\n');
@@ -64,21 +65,20 @@ pub fn board(board: &Plane<1>) -> String {
 /// Renders two boards, showing the overlap between them.
 #[inline]
 #[must_use]
-pub fn merge(red: &Plane<1>, blue: &Plane<1>) -> String {
+pub fn merge(red: &Board, blue: &Board) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
     s.push_str(&"─".repeat(WIDTH as usize * 2));
     s.push_str(TOP_RIGHT);
     s.push('\n');
-    let height = red.height(0).max(blue.height(0));
-    for y in (0..(height + 4).max(6)).rev() {
+    for y in (0..LINES).rev() {
         s.push_str(BAR);
         for x in 0..WIDTH {
-            s.push_str(&if red.get(0, x, y) && blue.get(0, x, y) {
+            s.push_str(&if red.get(x, y) && blue.get(x, y) {
                 cell(Piece::T, "  ")
-            } else if red.get(0, x, y) {
+            } else if red.get(x, y) {
                 cell(Piece::Z, "  ")
-            } else if blue.get(0, x, y) {
+            } else if blue.get(x, y) {
                 cell(Piece::I, "  ")
             } else {
                 EMPTY.to_string()
@@ -99,23 +99,23 @@ pub fn merge(red: &Plane<1>, blue: &Plane<1>) -> String {
 /// Renders a board with a placement applied.
 #[inline]
 #[must_use]
-pub fn placement(board: &Plane<1>, mv: &Move) -> String {
+pub fn placement(board: &Board, mv: &Move) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
     s.push_str(&"─".repeat(WIDTH as usize * 2));
     s.push_str(TOP_RIGHT);
     s.push('\n');
-    let cells = Plane::<1>::from_array([mv.mask().unwrap()]);
-    for y in (0..(board.height(0) + 4).max(6)).rev() {
+    let cells = mv.mask();
+    for y in (0..LINES).rev() {
         s.push_str(BAR);
         for x in 0..WIDTH {
-            s.push_str(&if cells.get(0, x, y) {
-                if board.get(0, x, y) {
+            s.push_str(&if cells.get(x, y) {
+                if board.get(x, y) {
                     cell(mv.piece(), "--")
                 } else {
                     cell(mv.piece(), "  ")
                 }
-            } else if board.get(0, x, y) {
+            } else if board.get(x, y) {
                 CELL.to_string()
             } else {
                 EMPTY.to_string()

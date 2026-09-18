@@ -33,10 +33,7 @@ pub fn main() {
 
                 println!(
                     "{}",
-                    expanded
-                        .iter()
-                        .map(|x| x.iter().join(""))
-                        .join(&separator)
+                    expanded.iter().map(|x| x.iter().join("")).join(&separator)
                 );
             }
         },

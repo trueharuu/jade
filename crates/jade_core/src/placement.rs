@@ -1,4 +1,6 @@
-use crate::{piece::Piece, rotation::Rotation};
+use crate::board::Board;
+use crate::piece::Piece;
+use crate::rotation::Rotation;
 
 // x=0..9 (4 bits)
 // y=0..7 (3 bits)
@@ -32,7 +34,7 @@ impl Move {
     }
 
     /// Creates a [`Move`] from its raw 16-bit representation.
-    /// 
+    ///
     /// # Safety
     /// The value must be a valid move.
     #[inline]
@@ -49,10 +51,12 @@ impl Move {
         let r = rotation as u16;
         let x = x as u16;
         let y = y as u16;
-        Self((p & PIECE_MASK) << PIECE_SHIFT
-            | (x & X_MASK) << X_SHIFT
-            | (y & Y_MASK) << Y_SHIFT
-            | (r & ROT_MASK) << ROT_SHIFT)
+        Self(
+            (p & PIECE_MASK) << PIECE_SHIFT
+                | (x & X_MASK) << X_SHIFT
+                | (y & Y_MASK) << Y_SHIFT
+                | (r & ROT_MASK) << ROT_SHIFT,
+        )
     }
 
     /// Decodes the [`Piece`] component.
@@ -91,13 +95,19 @@ impl Move {
     /// places the piece out of bounds.
     #[inline]
     #[must_use]
-    pub fn mask(self) -> Option<u64> {
-        crate::data::place_mask(self.piece(), self.rotation(), self.x(), self.y())
+    pub const fn mask(self) -> Board {
+        Board::new(crate::data::place_mask(
+            self.piece(),
+            self.rotation(),
+            self.x(),
+            self.y(),
+        ))
     }
 
     /// Returns the canonical form of this [`Move`].
-    /// 
-    /// Symmetrical [`Move`]s can have the same [`Move::mask`] result, with different values:
+    ///
+    /// Symmetrical [`Move`]s can have the same [`Move::mask`] result, with
+    /// different values:
     /// - [`Piece::T`], [`Piece::J`], and [`Piece::L`] have 4 canonical states
     /// - [`Piece::I`], [`Piece::S`], and [`Piece::Z`] have 2 canonical states
     /// - [`Piece::O`] has 1 canonical state
@@ -112,7 +122,12 @@ impl Move {
             self
         } else {
             let (dx, dy) = piece.canonical_offset(r);
-            Self::new(piece, cr, self.x().saturating_sub(dx), self.y().saturating_sub(dy))
+            Self::new(
+                piece,
+                cr,
+                self.x().saturating_sub(dx),
+                self.y().saturating_sub(dy),
+            )
         }
     }
 }

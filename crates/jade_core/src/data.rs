@@ -1,8 +1,7 @@
-use crate::{
-    header::{LINES, WIDTH},
-    piece::Piece,
-    rotation::Rotation,
-};
+use crate::header::MASK;
+use crate::header::WIDTH;
+use crate::piece::Piece;
+use crate::rotation::Rotation;
 
 /// Rotates a cell offset by a quarter-turn count. Ported unchanged: a
 /// rotation matrix has nothing to do with board representation.
@@ -111,22 +110,17 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
 };
 
 #[must_use]
-pub const fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> Option<u64> {
+pub const fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> u64 {
     let (ox, oy) = piece.canonical_offset(rotation);
     let canon = piece.canonical_rotation(rotation) as usize;
     let cx = x - ox;
     let cy = y - oy;
 
-    let (mask, x_bias, height, width) = PMASK[piece as usize][canon];
-    if cy < 0 || cy + height as i32 > LINES {
-        return None;
-    }
+    let (mask, x_bias, _, _) = PMASK[piece as usize][canon];
+
     let left = cx - x_bias as i32;
-    if left < 0 || left + width as i32 > WIDTH {
-        return None;
-    }
     let shifted = mask << (cy * WIDTH) as u32;
-    Some(shifted << left as u32)
+    (shifted << left as u32) & MASK
 }
 
 /// A single kick wave for a rotation transition: up to 6 `(dx, dy)`

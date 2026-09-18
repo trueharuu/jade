@@ -27,7 +27,7 @@ pub enum Condition {
     Not(Box<Self>),                                // !X
     Order(Box<Pattern>, Box<Pattern>, Comparator), // X < Y, X > Y, X <= Y, X >= Y, X == Y, X != Y
     Count(Box<Pattern>, usize, Comparator),        // X < N, X > N, X <= N, X >= N, X == N, X != N
-    Exists(Box<Pattern>),                              // X exists, i.e. count(X) > 0
+    Exists(Box<Pattern>),                          // X exists, i.e. count(X) > 0
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -77,8 +77,7 @@ impl Pattern {
         if parser.pos != parser.chars.len() {
             return Err(PatternError::ParseError(format!(
                 "unexpected '{}' at character {}",
-                parser.chars[parser.pos],
-                parser.pos
+                parser.chars[parser.pos], parser.pos
             )));
         }
         Ok(pattern)
@@ -98,8 +97,6 @@ impl std::str::FromStr for Pattern {
         Self::parse(src)
     }
 }
-
-
 
 impl Segment {
     #[must_use]
@@ -171,23 +168,21 @@ impl Segment {
                 result
             }
 
-            Self::Permute(expr, n) => {
-                expr.expand()
-                    .into_iter()
-                    .permutations(*n)
-                    .map(|perm| perm.into_iter().flatten().collect())
-                    .unique()
-                    .collect()
-            }
+            Self::Permute(expr, n) => expr
+                .expand()
+                .into_iter()
+                .permutations(*n)
+                .map(|perm| perm.into_iter().flatten().collect())
+                .unique()
+                .collect(),
 
-            Self::Choose(expr, n) => {
-                expr.expand()
-                    .into_iter()
-                    .combinations(*n)
-                    .map(|comb| comb.into_iter().flatten().collect())
-                    .unique()
-                    .collect()
-            }
+            Self::Choose(expr, n) => expr
+                .expand()
+                .into_iter()
+                .combinations(*n)
+                .map(|comb| comb.into_iter().flatten().collect())
+                .unique()
+                .collect(),
 
             Self::All(expr) => {
                 let mut elements = Vec::new();
@@ -195,11 +190,7 @@ impl Segment {
                     elements.extend(exp);
                 }
                 let len = elements.len();
-                elements
-                    .into_iter()
-                    .permutations(len)
-                    .unique()
-                    .collect()
+                elements.into_iter().permutations(len).unique().collect()
             }
 
             Self::Filter(a, c) => {
@@ -231,20 +222,18 @@ impl Condition {
                 }
                 match comparator {
                     Comparator::Eq | Comparator::Ne => {
-                        let same = aw
-                            .iter()
-                            .any(|wa| bw.iter().any(|wb| wa == wb));
+                        let same = aw.iter().any(|wa| bw.iter().any(|wb| wa == wb));
                         match comparator {
                             Comparator::Eq => same,
                             _ => !same,
                         }
                     }
-                    Comparator::Lt | Comparator::Le => aw
-                        .iter()
-                        .any(|wa| bw.iter().any(|wb| wa.1 <= wb.0)),
-                    Comparator::Gt | Comparator::Ge => bw
-                        .iter()
-                        .any(|wb| aw.iter().any(|wa| wb.1 <= wa.0)),
+                    Comparator::Lt | Comparator::Le => {
+                        aw.iter().any(|wa| bw.iter().any(|wb| wa.1 <= wb.0))
+                    }
+                    Comparator::Gt | Comparator::Ge => {
+                        bw.iter().any(|wb| aw.iter().any(|wa| wb.1 <= wa.0))
+                    }
                 }
             }
             Self::Count(a, n, comparator) => {
@@ -256,7 +245,8 @@ impl Condition {
     }
 }
 
-/// The end index of the longest expansion of `pattern` matching `pieces[start..]`, if any.
+/// The end index of the longest expansion of `pattern` matching
+/// `pieces[start..]`, if any.
 fn matches_at(pattern: &Pattern, pieces: &[Piece], start: usize) -> Option<usize> {
     let mut longest = None;
     for expansion in pattern.expand() {
@@ -273,7 +263,8 @@ fn matches_at(pattern: &Pattern, pieces: &[Piece], start: usize) -> Option<usize
     longest
 }
 
-/// Every (start, end) window of `pieces` matched by some expansion of `pattern`.
+/// Every (start, end) window of `pieces` matched by some expansion of
+/// `pattern`.
 fn occurrences(pattern: &Pattern, pieces: &[Piece]) -> Vec<(usize, usize)> {
     let mut result = Vec::new();
     for expansion in pattern.expand() {
@@ -292,8 +283,8 @@ fn occurrences(pattern: &Pattern, pieces: &[Piece]) -> Vec<(usize, usize)> {
     result
 }
 
-/// The number of non-overlapping matches of `pattern` in `pieces`, counting greedily
-/// left-to-right with the longest match taken at each position.
+/// The number of non-overlapping matches of `pattern` in `pieces`, counting
+/// greedily left-to-right with the longest match taken at each position.
 fn count_occurrences(pattern: &Pattern, pieces: &[Piece]) -> usize {
     let mut count = 0;
     let mut pos = 0;
@@ -309,7 +300,8 @@ fn count_occurrences(pattern: &Pattern, pieces: &[Piece]) -> usize {
     count
 }
 
-fn compare_count(count: usize, n: usize, comparator: Comparator) -> bool {
+#[must_use]
+pub const fn compare_count(count: usize, n: usize, comparator: Comparator) -> bool {
     match comparator {
         Comparator::Eq => count == n,
         Comparator::Ne => count != n,
@@ -341,7 +333,10 @@ impl Parser {
     }
 
     fn error<T>(&self, msg: impl std::fmt::Display) -> Result<T, PatternError> {
-        Err(PatternError::ParseError(format!("{msg} at character {}", self.pos)))
+        Err(PatternError::ParseError(format!(
+            "{msg} at character {}",
+            self.pos
+        )))
     }
 
     fn peek(&self) -> Option<char> {
@@ -387,7 +382,9 @@ impl Parser {
             n = n
                 .checked_mul(10)
                 .and_then(|v| v.checked_add(d))
-                .ok_or_else(|| PatternError::ParseError(format!("number too large at character {}", self.pos)))?;
+                .ok_or_else(|| {
+                    PatternError::ParseError(format!("number too large at character {}", self.pos))
+                })?;
             self.pos += 1;
         }
         if seen {
@@ -441,7 +438,8 @@ impl Parser {
         Ok(seq_segment(terms))
     }
 
-    /// A run of juxtaposed terms. Stops at any token that cannot continue a term.
+    /// A run of juxtaposed terms. Stops at any token that cannot continue a
+    /// term.
     fn parse_concatenation(&mut self) -> Result<Segment, PatternError> {
         self.skip_ws();
         let mut terms = vec![self.parse_term()?];
@@ -612,9 +610,12 @@ impl Parser {
 
     fn parse_relop(&mut self) -> Result<Comparator, PatternError> {
         self.skip_ws();
-        let c = self
-            .peek()
-            .ok_or_else(|| PatternError::ParseError(format!("expected a comparison, found end of input at character {}", self.pos)))?;
+        let c = self.peek().ok_or_else(|| {
+            PatternError::ParseError(format!(
+                "expected a comparison, found end of input at character {}",
+                self.pos
+            ))
+        })?;
         let (comparator, len) = match (c, self.peek_next()) {
             ('=', Some('=')) => (Comparator::Eq, 2),
             ('!', Some('=')) => (Comparator::Ne, 2),
@@ -631,7 +632,11 @@ impl Parser {
 
 impl Display for Pattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let segments: Vec<String> = self.0.iter().map(std::string::ToString::to_string).collect();
+        let segments: Vec<String> = self
+            .0
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         write!(f, "{}", segments.join(";"))
     }
 }
@@ -641,16 +646,21 @@ impl Display for Segment {
         match self {
             Self::Single(piece) => write!(f, "{piece}"),
             Self::Sequence(segments) => {
-                let segments: Vec<String> = segments.iter().map(std::string::ToString::to_string).collect();
+                let segments: Vec<String> = segments
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect();
                 write!(f, "{}", segments.join(""))
             }
             Self::Group(inner) => write!(f, "({inner})"),
             Self::Bag(inner) => {
-                let inner: Vec<String> = inner.iter().map(std::string::ToString::to_string).collect();
+                let inner: Vec<String> =
+                    inner.iter().map(std::string::ToString::to_string).collect();
                 write!(f, "[{}]", inner.join(""))
             }
             Self::Except(inner) => {
-                let inner: Vec<String> = inner.iter().map(std::string::ToString::to_string).collect();
+                let inner: Vec<String> =
+                    inner.iter().map(std::string::ToString::to_string).collect();
                 write!(f, "[^{}]", inner.join(""))
             }
             Self::Wildcard => write!(f, "*"),
@@ -666,11 +676,17 @@ impl Display for Condition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::And(conditions) => {
-                let conditions: Vec<String> = conditions.iter().map(std::string::ToString::to_string).collect();
+                let conditions: Vec<String> = conditions
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect();
                 write!(f, "{}", conditions.join("&"))
             }
             Self::Or(conditions) => {
-                let conditions: Vec<String> = conditions.iter().map(std::string::ToString::to_string).collect();
+                let conditions: Vec<String> = conditions
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect();
                 write!(f, "{}", conditions.join("|"))
             }
             Self::Not(condition) => write!(f, "!{condition}"),

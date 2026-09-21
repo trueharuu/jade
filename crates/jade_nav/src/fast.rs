@@ -8,6 +8,7 @@ use jade_core::rotation::Rotation;
 
 use crate::buffer::Moves;
 use crate::op::usable_map;
+use crate::op::vertical_ceiling;
 use crate::unroll;
 
 /// Exact move generation for a single piece on a 6-row plane.
@@ -44,6 +45,15 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 
     let mut search = [Board::empty(); Rotation::NB];
     search[0].set(sx, sy);
+
+    // Fast-init: pre-compute soft-drop reachability using vertical ceiling.
+    // The piece spawns at (4, sy). Soft drop expands downward; we use
+    // vertical_ceiling with power-of-two steps for O(log n) instead of O(n).
+    let max_sd = sy as i32;
+    if max_sd > 0 {
+        let sd_mask = usable[0].shifted(0, -max_sd);
+        search[0] |= vertical_ceiling(sd_mask, max_sd);
+    }
 
     loop {
         let (before_0, before_1, before_2, before_3) = (search[0].0, search[1].0, search[2].0, search[3].0);
@@ -87,16 +97,15 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     moves
 }
 
-/// Closes `search[r]` under soft drops and single-side lateral steps.
+/// Closes `search[r]` under lateral steps (left/right).
 ///
-/// A source origin marks the origin one row below it and the origins one
-/// column left and right when the target passes the fit test. One side
-/// suffices, as in the oracle's lateral move.
+/// Soft drop is pre-computed above via `vertical_ceiling`, so `closure`
+/// only needs to close under single-side lateral moves.
 #[inline(always)]
 fn closure(search: &mut [Board; Rotation::NB], fit: &[Board; Rotation::NB], r: usize) {
     loop {
         let g = search[r];
-        let growth = (((g.shifted(1, 0) | g.shifted(-1, 0)) | g.shifted(0, -1)) & fit[r]) & !g;
+        let growth = ((g.shifted(1, 0) | g.shifted(-1, 0)) & fit[r]) & !g;
 
         if !growth.any() {
             break;

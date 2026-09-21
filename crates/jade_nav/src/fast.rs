@@ -24,22 +24,13 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let cs = P.groups();
     let ss = P.search_size();
 
-    // Pre-compute canonical offsets and rotations for all raw rotations.
-    let mut ox_arr = [0i32; Rotation::NB];
-    let mut oy_arr = [0i32; Rotation::NB];
-    let mut cr_arr = [0usize; Rotation::NB];
-    unroll!(r, Rotation::NB, {
-        let (ox, oy) = P.canonical_offset(rot_idx!(r));
-        ox_arr[r] = ox;
-        oy_arr[r] = oy;
-        cr_arr[r] = P.canonical_rotation(rot_idx!(r)) as usize;
-    });
-
     // Fit plane per raw rotation: the canonical usable plane shifted by
     // the raw rotation's canonical offset.
     let mut fit = [Board::empty(); Rotation::NB];
     unroll!(r, Rotation::NB, {
-        fit[r] = usable[cr_arr[r]].shifted(ox_arr[r], oy_arr[r]);
+        let (ox, oy) = P.canonical_offset(rot_idx!(r));
+        let rc: usize = P.canonical_rotation(rot_idx!(r)) as usize;
+        fit[r] = usable[rc].shifted(ox, oy);
     });
 
     let sx = 4;
@@ -55,10 +46,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     search[0].set(sx, sy);
 
     loop {
-        let before_0 = search[0].0;
-        let before_1 = search[1].0;
-        let before_2 = search[2].0;
-        let before_3 = search[3].0;
+        let (before_0, before_1, before_2, before_3) = (search[0].0, search[1].0, search[2].0, search[3].0);
 
         unroll!(r, ss, {
             closure(&mut search, &fit, r);
@@ -78,12 +66,15 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     // Merge raw-rotation reachability into canonical rotation planes.
     let mut locked = [Board::empty(); Rotation::NB];
     unroll!(r, cs, {
-        locked[r] = search[r].shifted(-ox_arr[r], -oy_arr[r]);
+        let (ox, oy) = P.canonical_offset(rot_idx!(r));
+        locked[r] = search[r].shifted(-ox, -oy);
     });
 
     if P.group2() {
-        locked[0] |= search[2].shifted(-ox_arr[2], -oy_arr[2]);
-        locked[1] |= search[3].shifted(-ox_arr[3], -oy_arr[3]);
+        let s_off = P.canonical_offset(Rotation::South);
+        let w_off = P.canonical_offset(Rotation::West);
+        locked[0] |= search[2].shifted(-s_off.0, -s_off.1);
+        locked[1] |= search[3].shifted(-w_off.0, -w_off.1);
     }
 
     let mut moves = Moves::empty(P);

@@ -13,7 +13,7 @@ pub struct Moves {
 
 impl Moves {
     /// Creates a new, empty `Moves` result for the given piece.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn empty(piece: Piece) -> Self {
         Self {
@@ -24,7 +24,7 @@ impl Moves {
 
     /// Inserts a new [`Move`] into the buffer.
     /// Returns `true` if the move was not already present, `false` otherwise.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn insert(&mut self, mv: Move) -> bool {
         let r = mv.rotation() as usize;
@@ -39,7 +39,7 @@ impl Moves {
 
     /// Returns an iterator over all moves stored in this buffer, in ascending
     /// `(rotation, y, x)` order.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn iter(&self) -> MovesIter<'_> {
         MovesIter {
@@ -62,7 +62,7 @@ pub struct MovesIter<'a> {
 impl Iterator for MovesIter<'_> {
     type Item = Move;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         while self.rotation < Rotation::NB {
             // let board = match self.spin {
@@ -101,7 +101,7 @@ impl<'a> IntoIterator for &'a Moves {
     type Item = Move;
     type IntoIter = MovesIter<'a>;
 
-    #[inline]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }

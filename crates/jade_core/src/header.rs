@@ -15,14 +15,14 @@ pub const SPAWN_X: i32 = 4;
 pub const SPAWN_Y: i32 = 4;
 
 /// One full row of `WIDTH` bits at `row`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn row_word(row: i32) -> u64 {
     ((1u64 << WIDTH as u32) - 1) << (row * WIDTH) as u32
 }
 
 /// All bits in column `x` across all `LINES` rows.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn col_mask(x: i32) -> u64 {
     let mut w = 0u64;
@@ -35,7 +35,7 @@ pub const fn col_mask(x: i32) -> u64 {
 }
 
 /// Mask covering columns `[0, n)`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn cols_below(n: i32) -> u64 {
     let mut w = 0u64;
@@ -48,7 +48,7 @@ pub const fn cols_below(n: i32) -> u64 {
 }
 
 /// Mask covering rows `[0, n)`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn rows_below(n: i32) -> u64 {
     let mut w = 0u64;
@@ -62,7 +62,7 @@ pub const fn rows_below(n: i32) -> u64 {
 
 /// Mask that keeps only the bits that stay on-field after a horizontal
 /// shift by `dx` columns.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn dx_mask(dx: i32) -> u64 {
     if dx > 0 {
@@ -80,7 +80,7 @@ pub const fn dx_mask(dx: i32) -> u64 {
 /// so that the lowest cell in the frame sits at the frame's bottom row.
 /// An origin at row `cy` therefore places its cells at rows
 /// `cy + (j - min_y)`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn frame_min_y(p: usize, r: usize) -> i32 {
     let three = CELLS[p][r];
@@ -100,9 +100,8 @@ pub const fn frame_min_y(p: usize, r: usize) -> i32 {
 /// plane. A locked origin at row `cy` and column `cx` is valid only
 /// when every placed cell sits in rows 0 to 3.
 ///
-/// The canonical frame of `(piece, canonic)` spans rows `min_y` to
-/// `max_y` above its origin. Cells occupy rows `cy + (j - min_y)`, so
-/// the lock rule is `cy + (max_y - min_y) <= 3`. The columns are
+/// A cell at raw row offset `y` lands at board row `cy + y`, so the lock
+/// rule is `cy + min_y >= 0` and `cy + max_y <= 3`. The columns are
 /// bounded by the placement plane itself and are not part of this mask.
 pub const LANDED_OK: [[u64; Rotation::NB]; Piece::NB] = const {
     let mut out = [[0u64; Rotation::NB]; Piece::NB];
@@ -128,8 +127,9 @@ pub const LANDED_OK: [[u64; Rotation::NB]; Piece::NB] = const {
                 i += 1;
             }
 
-            let top = 3 - (max_y - min_y);
-            let mut row = 0;
+            let bottom = -min_y;
+            let top = 3 - max_y;
+            let mut row = bottom;
             while row <= top {
                 out[p][rc] |= row_word(row);
                 row += 1;

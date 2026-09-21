@@ -3,14 +3,16 @@ use jade_core::data::CELLS;
 use jade_core::data::KICKS_I;
 use jade_core::data::KICKS_TJLSZ;
 use jade_core::header::LINES;
+use jade_core::header::MASK;
 use jade_core::header::PLAY_LINES;
 use jade_core::header::WIDTH;
+use jade_core::header::col_mask;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rot_idx;
 use jade_core::rotation::Rotation;
 
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn check<const P: Piece>(
     usable: &[Board; Rotation::NB],
@@ -32,7 +34,7 @@ pub const fn check<const P: Piece>(
 
 /// Returns origin positions where the `I`-th mino of `(P, R)` can be placed
 /// safely.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn usable_cell<const P: Piece, const R: Rotation, const I: usize>(
     b: &Board,
@@ -54,7 +56,7 @@ pub fn usable_cell<const P: Piece, const R: Rotation, const I: usize>(
 
 /// Returns origin positions where all four minos of `x(P, R)` are
 /// collision-free.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn usable_rot<const P: Piece, const R: Rotation>(b: &Board, nb: &Board) -> Board {
     *nb & usable_cell::<P, R, 0>(b, nb)
@@ -63,7 +65,7 @@ pub fn usable_rot<const P: Piece, const R: Rotation>(b: &Board, nb: &Board) -> B
 }
 
 /// Builds usable-position maps for every canonical rotation of `P`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
     let negated = !*b;
@@ -86,7 +88,7 @@ pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
 ///
 /// The play field is the bottom `PLAY_LINES` rows; intermediate search
 /// positions may sit higher.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub(crate) fn fit_rot<const P: Piece, const R: Rotation>() -> Board {
     let region = Board::lines(PLAY_LINES);
@@ -103,7 +105,7 @@ pub(crate) fn fit_rot<const P: Piece, const R: Rotation>() -> Board {
 
 /// Builds the per-rotation origins where every cell of `P` lies in the
 /// play field, for the canonical rotations of `P`.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
     let mut fit = [Board::empty(); Rotation::NB];
@@ -122,7 +124,7 @@ pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
 }
 
 /// Converts usable maps into landable maps by requiring support directly below.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::NB] {
     let mut c = [Board::empty(); Rotation::NB];
@@ -134,7 +136,7 @@ pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::N
 
 /// Attempts to rotate `mv` to `target`, applying the first valid kick; returns
 /// the original move when no kick succeeds.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn apply_rotation<const P: Piece>(
     usable: &[Board; Rotation::NB],
@@ -163,4 +165,66 @@ pub fn apply_rotation<const P: Piece>(
     }
 
     *mv
+}
+
+#[macro_export]
+macro_rules! unroll {
+    ($r:ident, $limit:expr, $body:block) => {{
+        {
+            #[allow(non_upper_case_globals)]
+            const $r: usize = 0;
+            if $r < $limit $body
+        }
+        {
+            #[allow(non_upper_case_globals)]
+            const $r: usize = 1;
+            if $r < $limit $body
+        }
+        {
+            #[allow(non_upper_case_globals)]
+            const $r: usize = 2;
+            if $r < $limit $body
+        }
+        {
+            #[allow(non_upper_case_globals)]
+            const $r: usize = 3;
+            if $r < $limit $body
+        }
+    }};
+}
+
+// Expands a blocking surface downward by powers of two up to `ceiling`. Runs
+/// in O(log(ceiling)) time rather than O(ceiling) time.
+#[inline]
+#[must_use]
+pub fn vertical_ceiling(mut surface: Board, ceiling: i32) -> Board {
+    if ceiling >= 1 {
+        surface |= surface.shifted(0, -1);
+    }
+
+    if ceiling >= 2 {
+        surface |= surface.shifted(0, -2);
+    }
+
+    if ceiling >= 4 {
+        surface |= surface.shifted(0, -4);
+    }
+
+    if ceiling >= 8 {
+        surface |= surface.shifted(0, -8);
+    }
+
+    if ceiling >= 16 {
+        surface |= surface.shifted(0, -16);
+    }
+    surface
+}
+
+/// Expands a frontier by one horizontal step left/right within `usable` cells.
+#[inline]
+#[must_use]
+pub fn horizontal_tuck(s: Board, usable: &Board) -> Board {
+    const ML: u64 = MASK & !col_mask(9);
+    const MR: u64 = MASK & !col_mask(0);
+    Board(((s.0 & ML) << 1) | ((s.0 & MR) >> 1)) & *usable
 }

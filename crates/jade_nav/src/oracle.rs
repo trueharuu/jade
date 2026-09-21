@@ -1,6 +1,4 @@
 use jade_core::board::Board;
-use jade_core::header::LINES;
-use jade_core::header::WIDTH;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
@@ -16,7 +14,7 @@ use crate::queue::Queue;
 /// landed positions on the given board. A placement is reported only when
 /// every one of its cells lands in the play field (the bottom `PLAY_LINES`
 /// rows), over which the board can be filled.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let mut queue = Queue::new();
@@ -52,16 +50,10 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
         {
             let dropped_ghost = Move::new(P, x, drop_y, ghost.rotation());
             let c = dropped_ghost.canonicalize();
-            if c.x() < 0 || c.x() >= WIDTH || c.y() < 0 || c.y() >= LINES {
-                eprintln!(
-                    "DEBUG ghost={ghost:?} x={x} drop_y={drop_y} rot={:?} canon={c:?}",
-                    ghost.rotation()
-                );
-            } else if fit[c.rotation() as usize].get(c.x(), c.y()) {
+            if fit[c.rotation() as usize].get(c.x(), c.y()) {
                 let _ = landed.insert(c);
             }
         }
-        // break;
 
         // lateral movement
         'd: for dx in [-1, 1] {

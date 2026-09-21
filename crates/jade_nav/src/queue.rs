@@ -10,7 +10,7 @@ pub struct Queue<T> {
 }
 
 impl<T> Queue<T> {
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -21,14 +21,14 @@ impl<T> Queue<T> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn push_back(&mut self, val: T) {
         assert!(self.back - self.front != CAP, "queue full");
         self.buf[self.back & MASK].write(val);
         self.back = self.back.wrapping_add(1);
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn pop_front(&mut self) -> Option<T> {
         if self.front == self.back {
             return None;
@@ -38,7 +38,7 @@ impl<T> Queue<T> {
         Some(val)
     }
 
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.front == self.back

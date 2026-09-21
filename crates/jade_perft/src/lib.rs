@@ -1,6 +1,8 @@
 pub mod model;
 pub mod perft;
 
+#[inline(always)]
+#[must_use]
 pub fn human(value: f64) -> String {
     if value < 1_000.0 {
         format!("{value:.2}")

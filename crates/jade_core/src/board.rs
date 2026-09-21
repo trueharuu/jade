@@ -17,25 +17,25 @@ use crate::header::rows_below;
 
 /// A single, row-major, 10x6 bitboard.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Board(u64);
+pub struct Board(pub u64);
 
 impl Board {
     /// Returns an empty [`Board`].
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn empty() -> Self {
         Self(0)
     }
 
     /// Creates a [`Board`] from its raw 64-bit representation.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn new(raw: u64) -> Self {
         Self(raw)
     }
 
     /// Creates a [`Board`] with `n` rows filled from the bottom.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn lines(n: i32) -> Self {
         let mut w = 0u64;
@@ -48,7 +48,7 @@ impl Board {
     }
 
     /// Returns the total number of filled cells in the board.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn popcount(self) -> u32 {
         self.0.count_ones()
@@ -58,7 +58,7 @@ impl Board {
     ///
     /// `dy > 0` shifts up; `dy < 0` shifts down. `dx > 0` shifts right;
     /// `dx < 0` shifts left. Bits shifted past an edge are dropped.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn shifted(self, dx: i32, dy: i32) -> Self {
         let dy_shift = dy * 10;
@@ -83,7 +83,7 @@ impl Board {
     }
 
     /// Returns whether the cell at `(x, y)` is set.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn get(self, x: i32, y: i32) -> bool {
         // debug_assert!(
@@ -94,14 +94,21 @@ impl Board {
         self.0 & bit != 0
     }
 
+    /// Returns whether any cell is set on the board.
+    #[inline(always)]
+    #[must_use]
+    pub const fn any(self) -> bool {
+        self.0 != 0
+    }
+
     /// Sets the cell `(x, y)` in lane `lane`.
-    #[inline]
+    #[inline(always)]
     pub const fn set(&mut self, x: i32, y: i32) {
         self.0 |= 1u64 << (y * 10 + x) as u32;
     }
 
     /// Returns the occupied height of lane `lane`, or `0` if it is empty.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn height(self) -> i32 {
         if self.0 != 0 {
@@ -129,7 +136,7 @@ impl Board {
     /// forming 10-bit column vectors.  Shifts that wrap cell bits across row
     /// boundaries are neutralized by the wall masks.  Bits above bit 9 are
     /// garbage and are cleared by `bounded`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn has_isolated_cell(self) -> bool {
         const FIELD: u64 = rows_below(PLAY_LINES);
@@ -172,7 +179,7 @@ impl Board {
     ///
     /// Columns 1 to 7 are checked.  Checking columns 0 and 8 as well is
     /// equivalent to checking `has_isolated_cell`, which is cheaper.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn has_imbalanced_split(self) -> bool {
         // Column 0 across the play-field rows.
@@ -208,7 +215,7 @@ impl Board {
 
     /// Moves all completely filled rows to the bottom of the board, shifting
     /// the residue up.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn clearshift(self) -> Self {
         const ROW_MASK: u64 = 0x3FF;
@@ -272,7 +279,7 @@ impl Board {
     }
 
     /// Returns an iterator over the positions of filled cells in the board.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn iter(&self) -> BoardIter<'_> {
         BoardIter {
@@ -287,7 +294,7 @@ impl<'a> IntoIterator for &'a Board {
     type Item = (i32, i32);
     type IntoIter = BoardIter<'a>;
 
-    #[inline]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
@@ -303,7 +310,7 @@ pub struct BoardIter<'a> {
 impl Iterator for BoardIter<'_> {
     type Item = (i32, i32);
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         while self.y < LINES {
             while self.x < WIDTH {
@@ -327,7 +334,7 @@ impl Iterator for BoardIter<'_> {
 impl BitAnd for Board {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn bitand(self, rhs: Self) -> Self::Output {
         Self(self.0 & rhs.0)
     }
@@ -336,7 +343,7 @@ impl BitAnd for Board {
 impl BitOr for Board {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn bitor(self, rhs: Self) -> Self::Output {
         Self(self.0 | rhs.0)
     }
@@ -345,28 +352,28 @@ impl BitOr for Board {
 impl BitXor for Board {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn bitxor(self, rhs: Self) -> Self::Output {
         Self(self.0 ^ rhs.0)
     }
 }
 
 impl BitAndAssign for Board {
-    #[inline]
+    #[inline(always)]
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0;
     }
 }
 
 impl BitOrAssign for Board {
-    #[inline]
+    #[inline(always)]
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0;
     }
 }
 
 impl BitXorAssign for Board {
-    #[inline]
+    #[inline(always)]
     fn bitxor_assign(&mut self, rhs: Self) {
         self.0 ^= rhs.0;
     }
@@ -375,7 +382,7 @@ impl BitXorAssign for Board {
 impl Not for Board {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn not(self) -> Self::Output {
         Self(!self.0 & MASK)
     }

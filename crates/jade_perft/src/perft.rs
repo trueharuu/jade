@@ -7,7 +7,7 @@ use crate::model::Model;
 use crate::model::moves;
 
 /// Board reached by locking `m` onto `board`, then clearing completed rows.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub fn child(board: Board, m: jade_core::placement::Move) -> Board {
     (board | m.mask()).clearshift()

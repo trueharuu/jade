@@ -1,6 +1,7 @@
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::render;
+use jade_nav::fast;
 use jade_nav::op;
 use jade_nav::oracle;
 
@@ -21,12 +22,11 @@ fn main() {
     println!("{}", render::merge(&b, &us[0]));
     println!("{}", render::merge(&b, &us[1]));
     let mut n = 0;
-    for s in &oracle::generate::<P>(&b) {
+    for s in &fast::generate::<P>(&b) {
         let result = (b | s.mask()).clearshift();
         n += 1;
-        println!("{}\n{n}. {s:?}", render::board(&result));
-        if result.has_imbalanced_split() || result.has_isolated_cell() {
-            println!("bad!");
-        }
+        let bad = result.has_imbalanced_split() || result.has_isolated_cell();
+        println!("{}\n{n}. {s:?} {bad}", render::placement(&b, &s));
+            
     }
 }

@@ -90,7 +90,7 @@ impl Pattern {
     }
 
     /// The AST size of this node.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub fn size(&self) -> usize {
         let mut size = 1;
@@ -217,7 +217,7 @@ impl Segment {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub fn size(&self) -> usize {
         match self {

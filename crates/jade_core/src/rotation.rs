@@ -26,7 +26,7 @@ impl Rotation {
     ];
 
     /// Returns the clockwise successor rotation.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn cw(self) -> Self {
         match self {
@@ -38,7 +38,7 @@ impl Rotation {
     }
 
     /// Returns the counterclockwise successor rotation.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn ccw(self) -> Self {
         match self {
@@ -50,7 +50,7 @@ impl Rotation {
     }
 
     /// Returns the half-turn successor rotation.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn flip(self) -> Self {
         match self {
@@ -63,7 +63,7 @@ impl Rotation {
 
     /// Converts a compact integer to a [`Rotation`], wrapping the input modulo
     /// 4.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     pub const fn from_u8(word: u8) -> Self {
         match word & 3 {

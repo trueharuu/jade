@@ -3,6 +3,7 @@ use jade_core::data::CELLS;
 use jade_core::data::KICKS_I;
 use jade_core::data::KICKS_TJLSZ;
 use jade_core::header::LINES;
+use jade_core::header::PLAY_LINES;
 use jade_core::header::WIDTH;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
@@ -81,13 +82,15 @@ pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
     usable
 }
 
-/// Origins of `(P, R)` whose four cells all land in filled cells of
-/// `region`. Used to restrict final placements to a field region without
-/// touching intermediate search positions.
+/// Origins of `(P, R)` whose four cells all land in the play field.
+///
+/// The play field is the bottom `PLAY_LINES` rows; intermediate search
+/// positions may sit higher.
 #[inline]
 #[must_use]
-pub fn fit_rot<const P: Piece, const R: Rotation>(region: &Board) -> Board {
-    let mut fit = *region;
+pub(crate) fn fit_rot<const P: Piece, const R: Rotation>() -> Board {
+    let region = Board::lines(PLAY_LINES);
+    let mut fit = region;
     let mut i = 0;
     while i < 3 {
         let cx = i32::from(CELLS[P as usize][R as usize][i].0);
@@ -98,21 +101,21 @@ pub fn fit_rot<const P: Piece, const R: Rotation>(region: &Board) -> Board {
     fit
 }
 
-/// Builds the per-rotation origins where every cell of `P` lies in a filled
-/// cell of `region`, for the canonical rotations of `P`.
+/// Builds the per-rotation origins where every cell of `P` lies in the
+/// play field, for the canonical rotations of `P`.
 #[inline]
 #[must_use]
-pub fn fit_map<const P: Piece>(region: &Board) -> [Board; Rotation::NB] {
+pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
     let mut fit = [Board::empty(); Rotation::NB];
-    fit[0] = fit_rot::<P, { Rotation::North }>(region);
+    fit[0] = fit_rot::<P, { Rotation::North }>();
 
     if P.group2() || P.group4() {
-        fit[1] = fit_rot::<P, { Rotation::East }>(region);
+        fit[1] = fit_rot::<P, { Rotation::East }>();
     }
 
     if P.group4() {
-        fit[2] = fit_rot::<P, { Rotation::South }>(region);
-        fit[3] = fit_rot::<P, { Rotation::West }>(region);
+        fit[2] = fit_rot::<P, { Rotation::South }>();
+        fit[3] = fit_rot::<P, { Rotation::West }>();
     }
 
     fit
@@ -155,7 +158,7 @@ pub fn apply_rotation<const P: Piece>(
         let new_x = mv.x() + dx;
         let new_y = mv.y() + dy;
         if check::<P>(usable, new_x, new_y, target as usize) {
-            return Move::new(mv.piece(),  new_x, new_y, target);
+            return Move::new(mv.piece(), new_x, new_y, target);
         }
     }
 

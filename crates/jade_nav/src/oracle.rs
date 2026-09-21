@@ -12,20 +12,19 @@ use crate::op::fit_map;
 use crate::op::usable_map;
 use crate::queue::Queue;
 
-/// BFS move generation for a single piece and rule, returning all reachable
+/// BFS move generation for a single piece, returning all reachable
 /// landed positions on the given board. A placement is reported only when
-/// every one of its cells lands in a filled cell of `region`, which
-/// restricts final positions to a field region. Pass `&Board::lines(6)` for
-/// no restriction.
+/// every one of its cells lands in the play field (the bottom `PLAY_LINES`
+/// rows), over which the board can be filled.
 #[inline]
 #[must_use]
-pub fn generate<const P: Piece>(board: &Board, region: &Board) -> Moves {
+pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let mut queue = Queue::new();
     let mut visited: Moves = Moves::empty(P);
     let mut landed = Moves::empty(P);
 
     let usable = usable_map::<P>(board);
-    let fit = fit_map::<P>(region);
+    let fit = fit_map::<P>();
 
     let sx = 4;
     let sy = 5 - P.h_spawn();
@@ -39,22 +38,25 @@ pub fn generate<const P: Piece>(board: &Board, region: &Board) -> Moves {
         if !visited.insert(ghost) {
             continue;
         }
-        
+
         let x = ghost.x();
         let y = ghost.y();
         let r = ghost.rotation() as usize;
-        
+
         // hard drop
         let mut drop_y = y;
         while check::<P>(&usable, x, drop_y - 1, r) {
             drop_y -= 1;
         }
-        
+
         {
             let dropped_ghost = Move::new(P, x, drop_y, ghost.rotation());
             let c = dropped_ghost.canonicalize();
             if c.x() < 0 || c.x() >= WIDTH || c.y() < 0 || c.y() >= LINES {
-                eprintln!("DEBUG ghost={ghost:?} x={x} drop_y={drop_y} rot={:?} canon={c:?}", ghost.rotation());
+                eprintln!(
+                    "DEBUG ghost={ghost:?} x={x} drop_y={drop_y} rot={:?} canon={c:?}",
+                    ghost.rotation()
+                );
             } else if fit[c.rotation() as usize].get(c.x(), c.y()) {
                 let _ = landed.insert(c);
             }
@@ -103,8 +105,7 @@ pub fn generate<const P: Piece>(board: &Board, region: &Board) -> Moves {
 
         // rotation (180)
         {
-            let new_ghost =
-                apply_rotation::<P>(&usable, &ghost, ghost.rotation().flip());
+            let new_ghost = apply_rotation::<P>(&usable, &ghost, ghost.rotation().flip());
             if new_ghost != ghost {
                 queue.push_back(new_ghost);
             }

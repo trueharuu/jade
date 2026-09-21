@@ -8,10 +8,12 @@ use std::ops::Not;
 
 use crate::header::LINES;
 use crate::header::MASK;
+use crate::header::PLAY_LINES;
 use crate::header::WIDTH;
 use crate::header::col_mask;
 use crate::header::dx_mask;
 use crate::header::row_word;
+use crate::header::rows_below;
 
 /// A single, row-major, 10x6 bitboard.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -110,7 +112,8 @@ impl Board {
         0
     }
 
-    /// Returns whether the board has an empty cell that cannot be filled.
+    /// Returns whether the play field has an empty cell that cannot be
+    /// filled.
     ///
     /// An empty cell is bounded when both neighbors in its row are filled,
     /// or when one side is a wall and the other is filled.  If a column is
@@ -119,6 +122,9 @@ impl Board {
     /// in the column, the column cannot be filled.  The board is then
     /// impossible to fill.
     ///
+    /// Only the bottom `PLAY_LINES` rows are checked.  The rows above are
+    /// a piece movement margin and never hold filled cells.
+    ///
     /// Each row is shifted down so that its column bits sit in bits 0-9,
     /// forming 10-bit column vectors.  Shifts that wrap cell bits across row
     /// boundaries are neutralized by the wall masks.  Bits above bit 9 are
@@ -126,33 +132,22 @@ impl Board {
     #[inline]
     #[must_use]
     pub const fn has_isolated_cell(self) -> bool {
-        const LEFT_WALL: u64 = col_mask(0);
-        const RIGHT_WALL: u64 = col_mask(9);
+        const FIELD: u64 = rows_below(PLAY_LINES);
+        const LEFT_WALL: u64 = col_mask(0) & FIELD;
+        const RIGHT_WALL: u64 = col_mask(9) & FIELD;
 
-        let full = (self.0 >> 50)
-            & (self.0 >> 40)
-            & (self.0 >> 30)
-            & (self.0 >> 20)
-            & (self.0 >> 10)
-            & self.0;
-        let not_empty = (self.0 >> 50)
-            | (self.0 >> 40)
-            | (self.0 >> 30)
-            | (self.0 >> 20)
-            | (self.0 >> 10)
-            | self.0;
+        let b = self.0 & FIELD;
 
-        let left_bounded = (self.0 << 1) | LEFT_WALL;
-        let right_bounded = (self.0 >> 1) | RIGHT_WALL;
+        let full = (b >> 30) & (b >> 20) & (b >> 10) & b;
+        let not_empty = (b >> 30) | (b >> 20) | (b >> 10) | b;
 
-        let bounded_cells = (left_bounded & right_bounded) | self.0;
+        let left_bounded = (b << 1) | LEFT_WALL;
+        let right_bounded = (b >> 1) | RIGHT_WALL;
 
-        let bounded = (bounded_cells >> 50)
-            & (bounded_cells >> 40)
-            & (bounded_cells >> 30)
-            & (bounded_cells >> 20)
-            & (bounded_cells >> 10)
-            & bounded_cells;
+        let bounded_cells = (left_bounded & right_bounded) | b;
+
+        let bounded =
+            (bounded_cells >> 30) & (bounded_cells >> 20) & (bounded_cells >> 10) & bounded_cells;
 
         // A column that is neither empty nor full, and whose every empty cell
         // is bounded, makes the board impossible.  `bounded` has no bits set
@@ -160,8 +155,8 @@ impl Board {
         (not_empty & !full & bounded) != 0
     }
 
-    /// Returns whether the board has a disconnected region whose empty cell
-    /// count is not a multiple of four.
+    /// Returns whether the play field has a disconnected region whose empty
+    /// cell count is not a multiple of four.
     ///
     /// Each placed piece fills four cells.  A region separated from the rest
     /// of the board can only be filled by pieces placed entirely inside it.
@@ -172,13 +167,21 @@ impl Board {
     /// cell can cross the seam between them.  The cells left of the seam are
     /// then disconnected from the cells right of it.
     ///
+    /// Only the bottom `PLAY_LINES` rows are checked.  The rows above are
+    /// a piece movement margin and never hold filled cells.
+    ///
     /// Columns 1 to 7 are checked.  Checking columns 0 and 8 as well is
     /// equivalent to checking `has_isolated_cell`, which is cheaper.
     #[inline]
     #[must_use]
     pub const fn has_imbalanced_split(self) -> bool {
-        let mut col_bits = col_mask(0);
-        let mut left_bits = col_mask(0);
+        // Column 0 across the play-field rows.
+        const COL_0: u64 = col_mask(0) & rows_below(PLAY_LINES);
+
+        let b = self.0 & rows_below(PLAY_LINES);
+
+        let mut col_bits = COL_0;
+        let mut left_bits = COL_0;
 
         let mut col = 1;
         while col <= 7 {
@@ -188,9 +191,11 @@ impl Board {
             // Every row of the seam between `col` and `col + 1` cells has a
             // filled cell, so cells left of the seam cannot reach cells right
             // of it.
-            if ((self.0 | (self.0 >> 1)) & col_bits) == col_bits {
-                let empty = left_bits & !self.0;
-                if !empty.count_ones().is_multiple_of(4) {
+            if ((b | (b >> 1)) & col_bits) == col_bits {
+                // A left region has 4*cols cells, so its empty count is a
+                // multiple of four exactly when the filled count is.
+                let left = b & left_bits;
+                if !left.count_ones().is_multiple_of(4) {
                     return true;
                 }
             }

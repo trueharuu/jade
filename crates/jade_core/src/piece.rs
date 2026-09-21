@@ -135,13 +135,7 @@ impl Piece {
     #[inline]
     #[must_use]
     pub const fn h_spawn(self) -> i32 {
-        if matches!(self, Piece::I) {
-            2
-        } else if matches!(self, Piece::O) {
-            0
-        } else {
-            1
-        }
+        if matches!(self, Piece::I) { 2 } else { 1 }
     }
 
     /// Placement height adjustment used by grounded placement logic.

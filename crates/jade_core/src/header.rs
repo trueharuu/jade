@@ -7,6 +7,9 @@ pub const LINES: i32 = 6;
 pub const BITS: u32 = 60;
 pub const MASK: u64 = (1u64 << BITS) - 1;
 
+/// Rows of the play field. The rows above it are a piece movement margin.
+pub const PLAY_LINES: i32 = 4;
+
 /// Spawn column and row of the piece origin.
 pub const SPAWN_X: i32 = 4;
 pub const SPAWN_Y: i32 = 4;

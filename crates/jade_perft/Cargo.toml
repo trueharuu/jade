@@ -1,0 +1,19 @@
+[package]
+name = "jade_perft"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "jade_perft"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+itertools = "0.15.0"
+rayon = "1"
+jade_core = { version = "0.1.0", path = "../jade_core" }
+jade_nav = { version = "0.1.0", path = "../jade_nav" }
+jade_pattern = { version = "0.1.0", path = "../jade_pattern" }
+
+[lints]
+workspace = true

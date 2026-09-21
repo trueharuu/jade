@@ -1,12 +1,10 @@
 [package]
-name = "sandbox"
+name = "jade_nav"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 jade_core = { version = "0.1.0", path = "../jade_core" }
-jade_nav = { version = "0.1.0", path = "../jade_nav" }
-jade_pattern = { version = "0.1.0", path = "../jade_pattern" }
 
 [lints]
 workspace = true

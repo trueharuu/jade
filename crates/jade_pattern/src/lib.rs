@@ -88,6 +88,17 @@ impl Pattern {
     pub fn segments(&self) -> &[Segment] {
         &self.0
     }
+
+    /// The AST size of this node.
+    #[inline]
+    #[must_use]
+    pub fn size(&self) -> usize {
+        let mut size = 1;
+        for segment in &self.0 {
+            size += segment.size();
+        }
+        size
+    }
 }
 
 impl std::str::FromStr for Pattern {
@@ -205,6 +216,19 @@ impl Segment {
             }
         }
     }
+
+    #[inline]
+    #[must_use]
+    pub fn size(&self) -> usize {
+        match self {
+            Segment::All(z) | Segment::Choose(z, _) => 1 + z.size(),
+            Segment::Bag(z) | Segment::Except(z) => 1 + z.iter().map(Segment::size).sum::<usize>(),
+            Segment::Filter(a, c) => 1 + a.size() + c.size(),
+            Segment::Group(a) | Segment::Permute(a, _) => 1 + a.size(),
+            Segment::Sequence(a) => 1 + a.iter().map(Segment::size).sum::<usize>(),
+            Segment::Single(_) | Segment::Wildcard => 1,
+        }
+    }
 }
 
 impl Condition {
@@ -241,6 +265,17 @@ impl Condition {
                 compare_count(count, *n, *comparator)
             }
             Self::Exists(a) => count_occurrences(a, pieces) > 0,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Condition::And(conditions) | Condition::Or(conditions) => {
+                1 + conditions.iter().map(Condition::size).sum::<usize>()
+            }
+            Condition::Not(condition) => 1 + condition.size(),
+            Condition::Order(a, b, _) => 1 + a.size() + b.size(),
+            Condition::Count(a, _, _) | Condition::Exists(a) => 1 + a.size(),
         }
     }
 }

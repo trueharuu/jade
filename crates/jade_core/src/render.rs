@@ -45,7 +45,7 @@ pub fn board(board: &Board) -> String {
     s.push_str(&"─".repeat(WIDTH as usize * 2));
     s.push_str(TOP_RIGHT);
     s.push('\n');
-    for y in (0..(board.height() + 2).max(6)).rev() {
+    for y in (0..6).rev() {
         s.push_str(BAR);
         for x in 0..WIDTH {
             s.push_str(if board.get(x, y) { CELL } else { EMPTY });
@@ -106,12 +106,15 @@ pub fn placement(board: &Board, mv: &Move) -> String {
     s.push_str(TOP_RIGHT);
     s.push('\n');
     let cells = mv.mask();
+    let ctr = (mv.x(), mv.y());
     for y in (0..LINES).rev() {
         s.push_str(BAR);
         for x in 0..WIDTH {
             s.push_str(&if cells.get(x, y) {
                 if board.get(x, y) {
                     cell(mv.piece(), "--")
+                } else if (x, y) == ctr {
+                    cell(mv.piece(), "..")
                 } else {
                     cell(mv.piece(), "  ")
                 }

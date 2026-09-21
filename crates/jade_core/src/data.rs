@@ -41,6 +41,9 @@ pub const CELLS: [[Cells; Rotation::NB]; Piece::NB] = const {
     out
 };
 
+/// A packed placement: the mask is stored in a frame whose top-left cell
+/// sits at bit 0; `x_bias` is `-min_x` and `min_y` restores the vertical
+/// position on apply. `width` is unused.
 pub type PlaceMask = (u64, i8, i8, i8);
 
 pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
@@ -90,7 +93,6 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
             }
 
             let x_bias = -min_x;
-            let height = max_y - min_y + 1;
             let width = max_x - min_x + 1;
             let mut mask = 0u64;
             let mut i = 0;
@@ -101,7 +103,7 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
                 i += 1;
             }
 
-            out[p][rc] = (mask, x_bias as i8, height as i8, width as i8);
+            out[p][rc] = (mask, x_bias as i8, min_y as i8, width as i8);
             rc += 1;
         }
         p += 1;
@@ -116,10 +118,17 @@ pub const fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> u64
     let cx = x - ox;
     let cy = y - oy;
 
-    let (mask, x_bias, _, _) = PMASK[piece as usize][canon];
+    let (mask, x_bias, min_y, _) = PMASK[piece as usize][canon];
 
+    // The stored mask keeps its top row at bit 0. Moving it to the origin
+    // needs `cy + min_y` rows: a cell at relative `Y` then lands at `cy + Y`.
+    let dy = cy + min_y as i32;
     let left = cx - x_bias as i32;
-    let shifted = mask << (cy * WIDTH) as u32;
+    let shifted = if dy >= 0 {
+        mask << (dy * WIDTH) as u32
+    } else {
+        mask >> ((-dy) * WIDTH) as u32
+    };
     (shifted << left as u32) & MASK
 }
 

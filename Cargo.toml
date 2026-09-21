@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "crates/jade_cli",
-    "crates/jade_core",
+    "crates/jade_core", "crates/jade_nav",
     "crates/jade_pattern",
     "crates/sandbox",
 ]

@@ -46,7 +46,7 @@ impl Move {
     /// Creates a new [`Move`] from its components.
     #[inline]
     #[must_use]
-    pub const fn new(piece: Piece, rotation: Rotation, x: i32, y: i32) -> Self {
+    pub const fn new(piece: Piece, x: i32, y: i32, rotation: Rotation) -> Self {
         let p = piece as u16;
         let r = rotation as u16;
         let x = x as u16;
@@ -124,9 +124,9 @@ impl Move {
             let (dx, dy) = piece.canonical_offset(r);
             Self::new(
                 piece,
-                cr,
                 self.x().saturating_sub(dx),
                 self.y().saturating_sub(dy),
+                cr,
             )
         }
     }

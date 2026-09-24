@@ -5,6 +5,7 @@ members = [
     "crates/jade_core", "crates/jade_nav",
     "crates/jade_pattern",
     "crates/jade_perft",
+    "crates/jade_solve",
     "crates/sandbox",
 ]
 

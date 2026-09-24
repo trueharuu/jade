@@ -12,7 +12,7 @@ use jade_core::placement::Move;
 use jade_core::rot_idx;
 use jade_core::rotation::Rotation;
 
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn check<const P: Piece>(
     usable: &[Board; Rotation::NB],
@@ -34,7 +34,7 @@ pub const fn check<const P: Piece>(
 
 /// Returns origin positions where the `I`-th mino of `(P, R)` can be placed
 /// safely.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn usable_cell<const P: Piece, const R: Rotation, const I: usize>(
     b: &Board,
@@ -56,7 +56,7 @@ pub fn usable_cell<const P: Piece, const R: Rotation, const I: usize>(
 
 /// Returns origin positions where all four minos of `x(P, R)` are
 /// collision-free.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn usable_rot<const P: Piece, const R: Rotation>(b: &Board, nb: &Board) -> Board {
     *nb & usable_cell::<P, R, 0>(b, nb)
@@ -65,7 +65,7 @@ pub fn usable_rot<const P: Piece, const R: Rotation>(b: &Board, nb: &Board) -> B
 }
 
 /// Builds usable-position maps for every canonical rotation of `P`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
     let negated = !*b;
@@ -88,7 +88,7 @@ pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
 ///
 /// The play field is the bottom `PLAY_LINES` rows; intermediate search
 /// positions may sit higher.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub(crate) fn fit_rot<const P: Piece, const R: Rotation>() -> Board {
     let region = Board::lines(PLAY_LINES);
@@ -105,7 +105,7 @@ pub(crate) fn fit_rot<const P: Piece, const R: Rotation>() -> Board {
 
 /// Builds the per-rotation origins where every cell of `P` lies in the
 /// play field, for the canonical rotations of `P`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
     let mut fit = [Board::empty(); Rotation::NB];
@@ -124,7 +124,7 @@ pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
 }
 
 /// Converts usable maps into landable maps by requiring support directly below.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::NB] {
     let mut c = [Board::empty(); Rotation::NB];
@@ -136,7 +136,7 @@ pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::N
 
 /// Attempts to rotate `mv` to `target`, applying the first valid kick; returns
 /// the original move when no kick succeeds.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn apply_rotation<const P: Piece>(
     usable: &[Board; Rotation::NB],

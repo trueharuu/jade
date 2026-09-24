@@ -21,6 +21,10 @@ pub enum PatternSubcommand {
         #[arg(short, long, default_value_t = String::from("\n"))]
         separator: String,
     },
+
+    Count {
+        pattern: Pattern,
+    }
 }
 
 pub fn main() {
@@ -35,6 +39,11 @@ pub fn main() {
                     "{}",
                     expanded.iter().map(|x| x.iter().join("")).join(&separator)
                 );
+            }
+
+            PatternSubcommand::Count { pattern } => {
+                let expanded = pattern.expand();
+                println!("{}", expanded.len());
             }
         },
     }

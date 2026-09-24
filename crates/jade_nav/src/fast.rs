@@ -8,7 +8,6 @@ use jade_core::rotation::Rotation;
 
 use crate::buffer::Moves;
 use crate::op::usable_map;
-use crate::op::vertical_ceiling;
 use crate::unroll;
 
 /// Exact move generation for a single piece on a 6-row plane.
@@ -18,7 +17,7 @@ use crate::unroll;
 /// the North spawn origin. The raw rotations stay distinct, matching the
 /// oracle state for state. Raw-rotation locks merge into canonical lock
 /// planes at emission.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let usable = usable_map::<P>(board);
@@ -45,15 +44,6 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 
     let mut search = [Board::empty(); Rotation::NB];
     search[0].set(sx, sy);
-
-    // Fast-init: pre-compute soft-drop reachability using vertical ceiling.
-    // The piece spawns at (4, sy). Soft drop expands downward; we use
-    // vertical_ceiling with power-of-two steps for O(log n) instead of O(n).
-    let max_sd = sy as i32;
-    if max_sd > 0 {
-        let sd_mask = usable[0].shifted(0, -max_sd);
-        search[0] |= vertical_ceiling(sd_mask, max_sd);
-    }
 
     loop {
         let (before_0, before_1, before_2, before_3) = (search[0].0, search[1].0, search[2].0, search[3].0);
@@ -101,11 +91,11 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 ///
 /// Soft drop is pre-computed above via `vertical_ceiling`, so `closure`
 /// only needs to close under single-side lateral moves.
-#[inline(always)]
+#[inline]
 fn closure(search: &mut [Board; Rotation::NB], fit: &[Board; Rotation::NB], r: usize) {
     loop {
         let g = search[r];
-        let growth = ((g.shifted(1, 0) | g.shifted(-1, 0)) & fit[r]) & !g;
+        let growth = ((g.shr() | g.shl() | g.shd()) & fit[r]) & !g;
 
         if !growth.any() {
             break;
@@ -121,7 +111,7 @@ fn closure(search: &mut [Board; Rotation::NB], fit: &[Board; Rotation::NB], r: u
 /// An SRS rotation applies its kicks in order, and only the first kick
 /// whose target fits takes effect. A kick therefore processes only the
 /// sources that earlier kicks in the same lane missed.
-#[inline(always)]
+#[inline]
 fn kick_seq<const P: Piece>(
     search: &mut [Board; Rotation::NB],
     fit: &[Board; Rotation::NB],

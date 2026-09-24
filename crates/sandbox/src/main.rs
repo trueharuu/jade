@@ -3,7 +3,6 @@ use jade_core::piece::Piece;
 use jade_core::render;
 use jade_nav::fast;
 use jade_nav::op;
-use jade_nav::oracle;
 
 fn main() {
     const P: Piece = Piece::S;

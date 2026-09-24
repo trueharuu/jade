@@ -35,7 +35,7 @@ impl Piece {
 
     /// Converts a compact integer to a piece, returning `None` when out of
     /// range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn from_u8(word: u8) -> Option<Self> {
         match word {
@@ -51,7 +51,7 @@ impl Piece {
     }
 
     /// Three non-origin mino offsets for the spawn orientation.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn base_cells(self) -> [(i8, i8); 3] {
         match self {
@@ -67,7 +67,7 @@ impl Piece {
 
     /// Maps from an arbitrary [`Rotation`] to its canonical representative, if
     /// this piece has symmetry.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn canonical_rotation(self, rot: Rotation) -> Rotation {
         match (self, rot) {
@@ -78,28 +78,28 @@ impl Piece {
     }
 
     /// Returns `true` for pieces with 90-degree rotational symmetry.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn group1(self) -> bool {
         matches!(self, Piece::O)
     }
 
     /// Returns `true` for pieces with 180-degree rotational symmetry.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn group2(self) -> bool {
         matches!(self, Piece::I | Piece::S | Piece::Z)
     }
 
     /// Returns `true` for pieces with no rotational symmetries.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn group4(self) -> bool {
         matches!(self, Piece::T | Piece::J | Piece::L)
     }
 
     /// Returns the number of canonical rotations for this piece.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn groups(self) -> usize {
         match self {
@@ -110,7 +110,7 @@ impl Piece {
     }
 
     /// Returns the total search size for this piece.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn search_size(self) -> usize {
         match self {
@@ -120,7 +120,7 @@ impl Piece {
     }
 
     /// Returns translation offsets needed to align canonical rotation frames.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn canonical_offset(self, r: Rotation) -> (i32, i32) {
         match (self, r) {
@@ -132,21 +132,21 @@ impl Piece {
     }
 
     /// Spawn height adjustment used by spawn placement logic.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn h_spawn(self) -> i32 {
         if matches!(self, Piece::I) { 2 } else { 1 }
     }
 
     /// Placement height adjustment used by grounded placement logic.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn h_place(self) -> i32 {
         2 + (matches!(self, Piece::I) as i32) - (matches!(self, Piece::O) as i32)
     }
 
     /// Generation height adjustment used by placement generation.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn h_gen(self) -> i32 {
         if matches!(self, Piece::I | Piece::T) {
@@ -160,7 +160,7 @@ impl Piece {
 }
 
 impl Display for Piece {
-    #[inline(always)]
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Piece::T => write!(f, "T"),
@@ -176,7 +176,7 @@ impl Display for Piece {
 
 impl FromStr for Piece {
     type Err = String;
-    #[inline(always)]
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "T" => Ok(Piece::T),

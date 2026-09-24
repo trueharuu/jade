@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use jade_core::piece::Piece;
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 // X;Y
 #[derive(Clone, PartialEq, Debug)]
@@ -59,8 +59,8 @@ impl std::fmt::Display for PatternError {
 
 impl Pattern {
     #[must_use]
-    pub fn expand(&self) -> Vec<Vec<Piece>> {
-        let mut result = Vec::new();
+    pub fn expand(&self) -> HashSet<Vec<Piece>> {
+        let mut result = HashSet::new();
 
         for segment in &self.0 {
             result.extend(segment.expand());
@@ -90,7 +90,7 @@ impl Pattern {
     }
 
     /// The AST size of this node.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn size(&self) -> usize {
         let mut size = 1;
@@ -217,7 +217,7 @@ impl Segment {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn size(&self) -> usize {
         match self {

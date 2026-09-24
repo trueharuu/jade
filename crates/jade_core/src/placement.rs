@@ -20,14 +20,14 @@ const ROT_MASK: u16 = 0b11;
 
 impl Move {
     /// Returns an invalid, null [`Move`].
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn null() -> Self {
         Self(0)
     }
 
     /// Returns the raw 16-bit representation of this [`Move`].
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn raw(self) -> u16 {
         self.0
@@ -37,14 +37,14 @@ impl Move {
     ///
     /// # Safety
     /// The value must be a valid move.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const unsafe fn from_raw(raw: u16) -> Self {
         Self(raw)
     }
 
     /// Creates a new [`Move`] from its components.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn new(piece: Piece, x: i32, y: i32, rotation: Rotation) -> Self {
         let p = piece as u16;
@@ -60,7 +60,7 @@ impl Move {
     }
 
     /// Decodes the [`Piece`] component.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn piece(self) -> Piece {
         let p = (self.0 >> PIECE_SHIFT) & PIECE_MASK;
@@ -68,7 +68,7 @@ impl Move {
     }
 
     /// Decodes the x-position component.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn x(self) -> i32 {
         let x = (self.0 >> X_SHIFT) & X_MASK;
@@ -76,7 +76,7 @@ impl Move {
     }
 
     /// Decodes the y-position component.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn y(self) -> i32 {
         let y = (self.0 >> Y_SHIFT) & Y_MASK;
@@ -84,7 +84,7 @@ impl Move {
     }
 
     /// Decodes the [`Rotation`] component.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn rotation(self) -> Rotation {
         let r = (self.0 >> ROT_SHIFT) & ROT_MASK;
@@ -93,7 +93,7 @@ impl Move {
 
     /// Returns the placement mask for this move, or `None` when the move
     /// places the piece out of bounds.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn mask(self) -> Board {
         Board::new(crate::data::place_mask(
@@ -111,7 +111,7 @@ impl Move {
     /// - [`Piece::T`], [`Piece::J`], and [`Piece::L`] have 4 canonical states
     /// - [`Piece::I`], [`Piece::S`], and [`Piece::Z`] have 2 canonical states
     /// - [`Piece::O`] has 1 canonical state
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub const fn canonicalize(self) -> Self {
         let piece = self.piece();

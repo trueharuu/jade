@@ -22,7 +22,7 @@ pub const CELL: &str = "\x1b[48;2;127;127;127m  \x1b[0m";
 pub const EMPTY: &str = "  ";
 
 /// Renders the cell for a given [`Piece`] color.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn cell(piece: Piece, i: &str) -> String {
     match piece {
@@ -37,7 +37,7 @@ pub fn cell(piece: Piece, i: &str) -> String {
 }
 
 /// Renders a single board.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn board(board: &Board) -> String {
     let mut s = String::new();
@@ -63,7 +63,7 @@ pub fn board(board: &Board) -> String {
 }
 
 /// Renders two boards, showing the overlap between them.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn merge(red: &Board, blue: &Board) -> String {
     let mut s = String::new();
@@ -97,7 +97,7 @@ pub fn merge(red: &Board, blue: &Board) -> String {
 }
 
 /// Renders a board with a placement applied.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn placement(board: &Board, mv: &Move) -> String {
     let mut s = String::new();

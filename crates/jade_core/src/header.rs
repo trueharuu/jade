@@ -6,6 +6,8 @@ pub const WIDTH: i32 = 10;
 pub const LINES: i32 = 6;
 pub const BITS: u32 = 60;
 pub const MASK: u64 = (1u64 << BITS) - 1;
+pub const PC_4: u64 = (1u64 << 40) - 1;
+pub const PC_2: u64 = (1u64 << 20) - 1;
 
 /// Rows of the play field. The rows above it are a piece movement margin.
 pub const PLAY_LINES: i32 = 4;
@@ -15,14 +17,14 @@ pub const SPAWN_X: i32 = 4;
 pub const SPAWN_Y: i32 = 4;
 
 /// One full row of `WIDTH` bits at `row`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn row_word(row: i32) -> u64 {
     ((1u64 << WIDTH as u32) - 1) << (row * WIDTH) as u32
 }
 
 /// All bits in column `x` across all `LINES` rows.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn col_mask(x: i32) -> u64 {
     let mut w = 0u64;
@@ -35,7 +37,7 @@ pub const fn col_mask(x: i32) -> u64 {
 }
 
 /// Mask covering columns `[0, n)`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn cols_below(n: i32) -> u64 {
     let mut w = 0u64;
@@ -48,7 +50,7 @@ pub const fn cols_below(n: i32) -> u64 {
 }
 
 /// Mask covering rows `[0, n)`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn rows_below(n: i32) -> u64 {
     let mut w = 0u64;
@@ -62,7 +64,7 @@ pub const fn rows_below(n: i32) -> u64 {
 
 /// Mask that keeps only the bits that stay on-field after a horizontal
 /// shift by `dx` columns.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn dx_mask(dx: i32) -> u64 {
     if dx > 0 {
@@ -80,7 +82,7 @@ pub const fn dx_mask(dx: i32) -> u64 {
 /// so that the lowest cell in the frame sits at the frame's bottom row.
 /// An origin at row `cy` therefore places its cells at rows
 /// `cy + (j - min_y)`.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub const fn frame_min_y(p: usize, r: usize) -> i32 {
     let three = CELLS[p][r];

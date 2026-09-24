@@ -130,6 +130,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
+name = "fumen"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae2f2ce743f92bfe03f12f73731e39ac8b525a2f4044db2f098c224442c65ab1"
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -184,6 +190,7 @@ name = "jade_perft"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "fumen",
  "itertools",
  "jade_core",
  "jade_nav",

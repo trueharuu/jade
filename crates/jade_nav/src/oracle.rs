@@ -14,7 +14,7 @@ use crate::queue::Queue;
 /// landed positions on the given board. A placement is reported only when
 /// every one of its cells lands in the play field (the bottom `PLAY_LINES`
 /// rows), over which the board can be filled.
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let mut queue = Queue::new();

@@ -374,7 +374,7 @@ impl Search<'_> {
 /// fast move generator.
 #[inline]
 #[must_use]
-fn fast_moves(piece: Piece, board: Board) -> Moves {
+pub(crate) fn fast_moves(piece: Piece, board: Board) -> Moves {
     match piece {
         Piece::T => fast::generate::<{ Piece::T }>(&board),
         Piece::I => fast::generate::<{ Piece::I }>(&board),

@@ -111,8 +111,11 @@ consistent. No other measurement has been taken.
     `debug` flag and `JADE_SOLVE_SEQ` exist only to select `walk_seq`.
 16. `walk_par` is the only walk that runs today, because nothing sets `debug`
     and nothing sets `JADE_SOLVE_SEQ` in the workspace.
-17. `ref/jigsaw.txt` holds 209 entries of the form `SEQ,BOOL`. 54 are `true`.
-    Every entry is a 3-piece queue with a known answer.
+17. `ref/jigsaw.txt` holds 210 entries of the form `SEQ,BOOL`. 54 are `true`.
+    Every entry is a 3-piece queue. **This is not a valid reference for this
+    solver.** A 3-piece queue fills at most 12 cells, `PC_4` needs 40 and
+    `PC_2` needs 20, so all 210 are unreachable by construction. The 54 `true`
+    entries cannot be answers for `reachable` or `reachable_2l`.
 18. The workspace `Cargo.toml` has no `[profile.dev]` section, so `cargo run`
     builds at `opt-level = 0`. In that mode rustc does not honour `#[inline]`,
     so every `Board` method is a real call, and `Board::shifted` at
@@ -590,6 +593,10 @@ These came from the owner and are already applied above.
 3. **`rayon` was removed from `crates/jade_solve/Cargo.toml`.** The plan did not
    list this. The crate declared `rayon` but called no rayon API, so the
    dependency was dead weight.
+4. **`ref/jigsaw.txt` was found to be unusable as a reference.** The plan made
+   it the baseline for every phase. All 210 of its entries are 3-piece queues,
+   which cannot reach either goal, so it cannot detect any answer regression.
+   Fact 17 is corrected above.
 
 ### Corrected facts in this document
 
@@ -599,6 +606,10 @@ These came from the owner and are already applied above.
   serial loop.
 - Fact 4 and Fact 5 remain correct. The per-chunk `Vec` staging and the
   per-worker `set.reserve` were real costs, paid on one thread.
+- Fact 17 is wrong. `ref/jigsaw.txt` holds 210 entries, not 209, and its 54
+  `true` answers cannot come from this solver, because all its entries are
+  3-piece queues and no 3-piece queue can fill a 40-cell or 20-cell field. See
+  the Deviations section.
 
 ### Verification actually performed
 
@@ -609,10 +620,45 @@ These came from the owner and are already applied above.
 - `cargo test --workspace` passes. 3 passed, 1 ignored, 0 failed. The crate has
   no test module, so no test covers the solver directly.
 
-### Known risk, not closed
+### Known risk, closed on 2026-09-29
 
-Step 1.1, the 209-case answer baseline, was **not** run. The owner chose build
-and lint only. The claim that `walk_seq` and `walk_par` returned the same
-answers was never tested, and `walk_seq` is now the only walk. An answer
-regression would not be caught by the current checks. The 209 cases in
-`ref/jigsaw.txt` are the reference if this needs to be closed later.
+Step 1.1, the answer baseline, has now been done. `walk_seq` did not regress
+any answer.
+
+`ref/jigsaw.txt` turned out **not** to be a valid reference. All 210 of its
+entries are 3-piece queues. A 3-piece queue fills at most 12 cells, and `PC_4`
+needs 40 while `PC_2` needs 20, so every entry is unreachable by construction.
+The solver returns `false` for all 210, and that is the correct answer. The 54
+entries recorded as `true` cannot be answers for this solver. The file is
+probably from a different question, and it should not be used to validate
+`reachable` or `reachable_2l`.
+
+Instead the solver was checked against an independent implementation. Commit
+`d52685f` contains a third, older solver: a single-threaded `walk` with no
+pruning heuristics, no hold-release branch, and no `--2l` mode. It was built in
+a separate worktree as an oracle.
+
+Results:
+
+| Check | Result |
+|---|---|
+| 5-7 piece queues, new vs oracle | 180 agree, 0 disagree |
+| 10-piece queues, new vs oracle | 16 agree, 0 disagree (4 true, 12 false) |
+| `OOIJL`-prefixed 10-piece queues, `--2l` | 40 of 40 reach `PC_2` |
+| `OOIJL`-prefixed 10-piece queues, full-board vs oracle | 40 agree, 0 disagree |
+| `TZSIJLOIOJ` | `true`, 6.7 s release build |
+
+The 5-7 piece check is weak on its own. Those queues are below the cell count
+both goals need, so both implementations return `false` for all 180 and the
+comparison is close to vacuous. The 10-piece checks carry the real evidence,
+because they contain both `true` and `false` answers.
+
+### Measurement
+
+| Input | Release build |
+|---|---|
+| `TZSIJLOIOJ` | 6.7 s |
+| 210 cases of `ref/jigsaw.txt` | 1.3 s |
+
+The 209-case harness in the Testing section is void, because of the problem
+above. Any future timing baseline must use 10-piece queues.

@@ -83,14 +83,21 @@ jade congruents -p <pattern> --field <fumen>
 - Each distinct placement sequence prints once for the whole run, across all
   queue expansions.
 
-`jade_solve` gains one public function:
+`jade_solve` gains one public function and one public type:
 
 ```
-pub fn congruents<F: FnMut(&[Move])>(target: Board, queue: &[Piece], emit: F)
+pub type Paths = FxHashSet<Vec<Move>>
+
+pub fn congruents<F: FnMut(&[Move])>(target: Board, queue: &[Piece], seen: &mut Paths, emit: F)
 ```
 
 `emit` is called once per distinct placement sequence, with the sequence as a
 slice of the walk's own buffer. The callback must not hold the slice.
+
+`seen` is the set of sequences already reported, and the caller owns it. The set
+must span every queue of a command, so the caller creates one set and passes it
+to each call. The public function cannot create the set itself, because a set
+per call would print a sequence once per queue.
 
 The function normalizes the target itself, with `(target & FIELD).clearshift()`,
 the same as `solve` does for its start field. The result does not depend on the
@@ -125,60 +132,57 @@ allocated once and reused for every path.
 This is the one idea here that `solve` does not have, and it is what keeps the
 walk small.
 
-`clearshift` puts the full rows of a board at the bottom and the non-full rows
-above them, in their original relative order. A cell in non-full row `k` of a
-board can therefore only reach non-full row `k` of the target, because
-`clearshift` never reorders the non-full rows and a later placement only adds
-cells.
+`clearshift` writes the full rows at the bottom of the board and the non-full
+rows above them, in their original relative order (`board.rs:284`). A board
+that is a clearshifted board is a fixed point of `clearshift`, so this holds at
+every state of the walk. Two facts follow:
 
-Let `m` be the number of full rows of the clearshifted target and `j` the number
-of full rows of the clearshifted current board `b`. A cell of `b` that sits in
-row `j + k` can only end up in row `m + k` of the target. So `b` shifted up by
-`m - j` rows must be a subset of the target. Two tests reject a state that is
-not:
+1. A cell's row index is the count of full rows plus its own index among the
+   non-full rows.
+2. A cell keeps its row index for as long as its row stays non-full. Every new
+   full row takes one off its index among the non-full rows and adds one to the
+   full row count, so the two cancel.
+
+When the target has no full row, no state can have one either, so no row ever
+becomes full, so no cell ever moves. The board must then already be a subset of
+the target:
 
 ```
-if j > m                                                       -> dead
-shift = (m - j) * 10
-if b.0 >> (40 - shift) != 0                                    -> dead
-if (b.0 << shift) & !target.0 != 0                             -> dead
+if target has no full row and b.0 & !target.0 != 0 -> dead
 ```
 
-The first test runs before the shift is computed, because markers only ever
-accumulate, so a board can never have more full rows than its own result. It
-also keeps the two shifts below 64.
+That is the whole test. It is two instructions, and it is strong: it rejects any
+cell that is not already where the target needs it.
 
-The second test is the room test. `40 - shift` is the number of bits between the
-bottom of the board and the bottom of the target's residue, so it rejects a
-residue that reaches higher than the target allows.
+A target with a full row gets no per-cell test. The first version of this design
+tried to add one, and the differential test in `congruents.rs` showed it wrong
+twice. A cell can also end inside a full row, and the full rows of a target hold
+a cell at every column, so a cell has no column constraint there. What is left
+is the full row count:
 
-The third test is the subset test. The order matters. Without the room test
-first, a `u64` shift can drop bits past bit 63, and a dropped bit would only
-cost a prune, never correctness. With it, nothing is dropped, and the two tests
-together reject exactly the states that have a cell outside the target.
+```
+if b has more full rows than the target -> dead
+```
 
-An example, with a target of two full rows and four cells in row 2. Here
-`m = 2`. A state with `j = 0` is shifted up two rows, so only a cell in row 0
-or row 1 can land in row 2 or row 3, and the target has no cells in row 3. A
-state with a cell in row 1 is rejected by the subset test. A state with
-`j = 2` has `shift = 0`, so it must already be a subset of the target. A state
-with `j = 3` is rejected, because the target has only two full rows.
+Full rows only ever accumulate, so that is sound, and it costs one call to
+`markers`.
 
-The prune is what makes a 20-cell target a small search. It keeps only the
-states whose cells are all in the right place in the target.
+So the alignment prune is strong for a target with no full row, and absent for a
+target with one. The remaining-cells bound is what covers the second case, and
+the timings in the Deviations section below show that it is enough for the
+target sizes the owner expects.
 
 ### Other prunes
 
 - **Remaining cells.** `P - cells <= 4 * (queue.len() - level + has_hold)`. This
-  is the bound in `solve.rs:270`, with `P` in place of 40. It rejects the start
+  is the bound in `solve.rs:294`, with `P` in place of 40. It rejects the start
   state when the queue is too short, which is the common case for a pattern with
   wildcards.
 - **No cell-count test.** `solve` tests `cells & 3 != 0`. It is vacuous here,
   because the walk starts from the empty field and every placement adds exactly
   four cells.
 - **No field test.** `solve` tests `b.0 & !FIELD.0 != 0`. It is vacuous here. The
-  markers grow from the bottom, so the residue never rises above row 3, and the
-  room test rejects any cell that would.
+  full rows grow from the bottom, so the residue never rises above row 3.
 - **No fillability heuristics.** `is_unfillable`, `has_isolated_cell`, and
   `has_imbalanced_split` all reason about filling all four rows. A target need
   not fill any row at all, so a state can fail those tests and still be on a
@@ -240,21 +244,26 @@ and unused today. The set holds one `Vec<Move>` per result.
 ## Risks
 
 - **The alignment prune can cut a valid path.** The prune depends on one fact:
-  `clearshift` does not reorder the non-full rows, so a cell in non-full row `k`
-  can only reach non-full row `k` of the target. That fact is read from
-  `board.rs:284` and is not asserted anywhere. If a future change lets
-  `clearshift` reorder or drop non-full rows, the prune becomes unsound. The
-  comment on the prune states the fact.
+  `clearshift` does not reorder the non-full rows, and a cell keeps its row
+  index while its row stays non-full. That fact is read from `board.rs:284` and
+  is not asserted anywhere. If a future change lets `clearshift` reorder or drop
+  the non-full rows, the prune becomes unsound. The comment on the prune states
+  the fact, and the differential test in `congruents.rs` checks the prunes
+  against a walk with them off.
+- **A target with a full row has no alignment prune.** The walk for such a
+  target is larger than the plan assumed. The remaining-cells bound and the
+  goal test are all that is left. The measured cost is in the Deviations
+  section, and the owner accepted an unbounded walk.
 - **The result count is not known.** No limit by decision, and the cost is not
-  measured. The alignment prune bounds the walk, and the expected targets are 8
-  to 20 cells, but a 20-cell target with `*` walks 5040 queues.
+  measured for every target. A target with a full row and a pattern with many
+  queues is the slow case.
 - **The dedup set grows with the number of results.** It holds one `Vec<Move>`
   per distinct path, which is the same as the output.
 - **The output format depends on the derived `Debug` of `Move`.** `Move` is a
   packed `u16` today. Adding a field to it changes the output.
 - **The queue prefix rule makes the same path reachable from several queues.**
-  That is the intended meaning, and the global set is what keeps the output to
-  one line per path.
+  That is the intended meaning, and the caller-owned set is what keeps the output
+  to one line per path.
 
 ## Compatibility
 
@@ -271,6 +280,26 @@ and unused today. The set holds one `Vec<Move>` per result.
 - No data and no configuration change.
 
 ## Testing
+
+Six unit tests run in `crates/jade_solve/src/congruents.rs`, and two of them are
+differential.
+
+- `the_prunes_keep_every_path` walks twenty generated two-placement targets with
+  four queues, once with the prunes and once without, and compares the full path
+  sets.
+- `the_prunes_keep_every_path_into_a_full_row` does the same for up to three
+  generated three-placement targets that hold a full row, which is the case the
+  alignment prune does not cover.
+
+The walk carries a `const LIMITS: bool` parameter, so the reference walk is the
+same code with the prunes compiled out. There is no branch and no cost in the
+reported walk.
+
+The reference walk costs about a million states per three-placement target, so
+the generated target lists are cut. The tests took 2.6 s in a debug build.
+
+The other four tests cover a single-piece target, a target no queue can build,
+the empty target, and one set spanning two queues.
 
 Behavior checks are run by the project owner. The cases:
 
@@ -296,15 +325,57 @@ Behavior checks are run by the project owner. The cases:
    `solve <queue> --2l` exits 0. A five-piece queue cannot fill 40 cells, so the
    two answers must agree.
 10. A target that no queue can build. No output, exit code 0.
+11. A queue shorter than the target needs, such as three pieces against a
+    20-cell target. No output, exit code 0.
+
+Cases 1 to 5, 9 and 10 have been run and pass. The results are in the Deviations
+section below. Cases 6 to 8 and 11 are for the owner.
 
 Build checks run here: `cargo build --workspace`, `cargo clippy --workspace
---all-targets`, and `cargo fmt --check`. The workspace sets
-`missing_const_for_fn = deny` and `perf = deny`, so the new helpers are `const
-fn` where they can be, and the shifts are reviewed before they land.
+--all-targets`, and `cargo fmt --check`. Clippy is clean on the whole workspace.
+The workspace sets `missing_const_for_fn = deny` and `perf = deny`, so the new
+helpers are `const fn` where they can be.
 
 ## Deviations
 
-None yet.
+- **The public function takes the result set as a parameter.** The plan wrote
+  `congruents(target, queue, emit)` and also required one set for the whole
+  command. A function cannot hold both, so the caller owns the set and the CLI
+  passes one set to every queue. The type is public as `Paths`.
+- **The alignment prune in the plan was wrong, and the implementation is
+  smaller.** The plan shifted the board up by the difference in full row counts
+  and required a subset of the target. That drops valid paths, because a cell
+  can end inside a full row, and the plan did not model that. The implementation
+  uses the plain subset test, and only when the target has no full row. See the
+  Design section. The differential tests caught both wrong versions.
+- **The prune for a target with a full row is the full row count only.** The
+  plan described an alignment prune for every target.
+- **`Walk` carries a `const LIMITS: bool`.** The tests walk without the prunes
+  using the same code. This is not in the plan.
+- **`cargo fmt --check` still fails, on files outside this change.** It reports
+  `jade_nav/src/fast.rs`, `jade_nav/src/lib.rs`, `jade_pattern/src/lib.rs`,
+  `jade_perft/src/lib.rs`, `jade_perft/src/perft.rs`, and
+  `jade_solve/src/parse.rs`. The last one is a whitespace change that came in
+  with the save commit. `congruents.rs`, `jade_solve/src/lib.rs` and
+  `crates/jade_cli/src/main.rs` are formatted.
+
+Measured results, on a debug build:
+
+| Target | Queue | Result |
+| --- | --- | --- |
+| 4 cells, `T` shape | `T` | 1 path, 0.0 s |
+| 4 cells, `T` shape | `I` | 0 paths |
+| 0 cells | `*` | `[]` once, over 7 queues |
+| 2 cells | `T` | exit 2, with the count in the message |
+| 6 by 2 block, 12 cells, no full row | `OOO` | 6 paths, the 3 orders of 2 each of 2 spots |
+| `PC_2`, 20 cells, 2 full rows | `OOOOO` | 120 paths, 5 factorial, 0.15 s |
+| `PC_2`, 20 cells | `solve --2l` | exit 0, agrees with the 120 paths |
+| 20 cells, no full row | `ITTTT` | 87 paths, 0.65 s |
+| 20 cells, no full row | `TTT` | 0 paths, rejected by the remaining-cells bound |
+
+The `PC_2` result is a cross-check that does not depend on the prunes. Five `O`
+pieces tile the 10 by 2 field in exactly five spots, and each spot has one
+placement, so the only paths are the 5 factorial orders of those five.
 
 ## Implementation Steps
 

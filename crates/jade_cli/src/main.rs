@@ -1,8 +1,14 @@
+use std::io::BufWriter;
+use std::io::Write;
+
 use clap::Parser;
+use fumen::Fumen;
 use itertools::Itertools;
 use jade_core::board::Board;
 use jade_core::piece::Piece;
+use jade_core::placement::Move;
 use jade_core::render;
+use jade_core::rotation::Rotation;
 use jade_nav::oracle;
 use jade_pattern::Pattern;
 
@@ -39,6 +45,17 @@ pub enum Command {
         #[arg(short, long, default_value_t = String::from("v115@vhAAgh"))]
         field: String,
         piece: Piece,
+    },
+
+    /// Report every placement sequence that builds a target field.
+    Congruents {
+        /// Pattern whose expansions are searched.
+        #[arg(short, long)]
+        pattern: Pattern,
+        /// Target field, as a fumen. This is the field to build, not a start
+        /// field, so the search always starts from an empty field.
+        #[arg(short, long)]
+        field: String,
     },
 
     /// Report the fraction of a pattern's queues that have a solve.
@@ -176,6 +193,62 @@ pub fn main() {
                 .count();
 
             println!("{solved}/{total}");
+        }
+
+        Command::Congruents { pattern, field } => {
+            let target = parse_board(Some(&field));
+
+            // Every placement adds exactly four cells, so a target whose cell
+            // count is not a multiple of four has no placement sequence.
+            let cells = target.popcount();
+            if !cells.is_multiple_of(4) {
+                eprintln!("error: target field has {cells} cells, which is not a multiple of 4");
+                std::process::exit(2);
+            }
+
+            // One set for the whole command, not one per queue. Hold lets a
+            // path use fewer queue pieces than the queue holds, so one sequence
+            // can be reachable from more than one queue, and it prints once.
+            let mut seen = jade_solve::Paths::default();
+            let mut out = BufWriter::new(std::io::stdout().lock());
+
+            for queue in &pattern.expand() {
+                let mut emit = |path: &[Move]| {
+                    let mut f = Fumen::default();
+                    for m in path {
+                        let pg = f.add_page();
+                        pg.piece = Some(fumen::Piece {
+                            kind: match m.piece() {
+                                Piece::T => fumen::PieceType::T,
+                                Piece::I => fumen::PieceType::I,
+                                Piece::J => fumen::PieceType::J,
+                                Piece::L => fumen::PieceType::L,
+                                Piece::O => fumen::PieceType::O,
+                                Piece::S => fumen::PieceType::S,
+                                Piece::Z => fumen::PieceType::Z,
+                            },
+                            rotation: match m.rotation() {
+                                Rotation::North => fumen::RotationState::North,
+                                Rotation::East => fumen::RotationState::East,
+                                Rotation::South => fumen::RotationState::South,
+                                Rotation::West => fumen::RotationState::West,
+                            },
+                            x: m.x() as u32,
+                            y: m.y() as u32,
+                        });
+                    }
+                    let _ = writeln!(out, "{}", f.encode());
+                };
+                jade_solve::congruents(target, queue, &mut seen, &mut emit);
+            }
+
+            // The command returns instead of exiting, so the buffer is flushed
+            // here. An empty result is not a failure, so there is no exit code
+            // for it.
+            if let Err(err) = out.flush() {
+                eprintln!("error: failed to write results: {err}");
+                std::process::exit(1);
+            }
         }
     }
 }

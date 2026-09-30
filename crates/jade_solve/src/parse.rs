@@ -31,6 +31,8 @@ pub fn parse_fumen(s: &str) -> Result<Board, String> {
 
 /// Encodes a [`Board`] into a one-page fumen.
 /// Only the first four rows are encoded, and only grey (filled) cells are kept.
+#[inline]
+#[must_use]
 pub fn encode_fumen(board: &Board) -> String {
     let mut f = Fumen::default();
     let p = f.add_page();

@@ -135,11 +135,7 @@ impl Piece {
     #[inline]
     #[must_use]
     pub const fn h_spawn(self) -> i32 {
-        match self {
-            Self::T | Self::J | Self::L | Self::S | Self::Z => 4,
-            Self::O => 4,
-            Self::I => 4,
-        }
+        4
     }
 }
 

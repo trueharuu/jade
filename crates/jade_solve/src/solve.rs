@@ -11,13 +11,55 @@ use jade_nav::fast;
 /// The 4-row play field. Residue never leaves these rows.
 const FIELD: Board = Board::new(rows_below(PLAY_LINES));
 
+/// The full 4-row field. A goal in every mode, and terminal: no piece fits on
+/// it, so no transition leaves it.
+const PC_4: Board = Board::lines(4);
+
+/// The 2-row field. A goal only in two-line mode, and not terminal: the two
+/// rows above it stay open, so a path may continue toward `PC_4`.
+const PC_2: Board = Board::lines(2);
+
+/// Every hold value, the empty hold included. The set that [`reachable`] and
+/// [`reachable_2l`] use, so that they place no save requirement.
+const SAVE_ANY: u8 = u8::MAX;
+
+/// The index of a hold value in a save set. The empty hold is 0 and `Piece::p`
+/// is `p + 1`, so a set is one bit per hold value. [`pack`] uses the same
+/// numbering for the hold field of a key.
+#[inline]
+const fn hold_code(hold: Option<Piece>) -> u8 {
+    match hold {
+        None => 0,
+        Some(p) => p as u8 + 1,
+    }
+}
+
+/// The bit of a save set for one hold value.
+#[inline]
+const fn hold_bit(hold: Option<Piece>) -> u8 {
+    1 << hold_code(hold)
+}
+
+/// Returns whether `hold` meets the save requirement `saves`.
+#[inline]
+const fn holds(saves: u8, hold: Option<Piece>) -> bool {
+    saves & hold_bit(hold) != 0
+}
+
+/// The save set for a set of piece types. A save keeps a piece in hold, so the
+/// empty hold never meets one and its bit stays clear. An empty `save` gives
+/// the set `0`, which no hold value meets.
+fn save_set(save: &[Piece]) -> u8 {
+    save.iter().fold(0, |set, &p| set | hold_bit(Some(p)))
+}
+
 /// Returns whether `queue` can reach the full-board state from `board` while
 /// using hold.
 ///
 /// Reaching `PC_4` at any prefix of the queue counts as success.
 #[must_use]
 pub fn reachable(board: Board, queue: &[Piece]) -> bool {
-    solve_inner(board, queue, 4)
+    solve_inner(board, queue, 4, SAVE_ANY)
 }
 
 /// Like [`reachable`], but a two-line PC also counts as success.
@@ -26,7 +68,23 @@ pub fn reachable(board: Board, queue: &[Piece]) -> bool {
 /// field counts as success.
 #[must_use]
 pub fn reachable_2l(board: Board, queue: &[Piece]) -> bool {
-    solve_inner(board, queue, 2)
+    solve_inner(board, queue, 2, SAVE_ANY)
+}
+
+/// Like [`reachable`], but a goal only counts as success when the hold holds a
+/// piece whose type is in `save` at that moment.
+///
+/// An empty hold never meets a save, because a save keeps a piece in hold. An
+/// empty `save` therefore always returns `false`.
+#[must_use]
+pub fn reachable_save(board: Board, queue: &[Piece], save: &[Piece]) -> bool {
+    solve_inner(board, queue, 4, save_set(save))
+}
+
+/// Like [`reachable_save`], but a two-line PC also counts as success.
+#[must_use]
+pub fn reachable_save_2l(board: Board, queue: &[Piece], save: &[Piece]) -> bool {
+    solve_inner(board, queue, 2, save_set(save))
 }
 
 /// Returns whether `board` can never be filled.
@@ -130,24 +188,36 @@ thread_local! {
 }
 
 /// Returns whether a goal state is reachable. `lines` selects the goal set:
-/// `4` accepts only `PC_4`; `2` accepts `PC_2` or `PC_4`. Hold is always on.
+/// `4` accepts only `PC_4`; `2` accepts `PC_2` or `PC_4`. `saves` is the set
+/// of hold values a goal state must have in hold; [`SAVE_ANY`] drops that
+/// requirement. Hold is always on.
 ///
 /// The search is a depth-first search over `(level, board, hold)`. `level` is
 /// the queue index. A state is expanded at most once, so the set of expanded
 /// states is the same as in a level-by-level search. The search stops at the
 /// first goal.
-fn solve_inner(board: Board, queue: &[Piece], lines: usize) -> bool {
-    let goals = match lines {
-        2 => [Board::lines(2), Board::lines(4)],
-        4 => [Board::lines(4), Board::lines(4)],
-        _ => unreachable!("lines must be 2 or 4"),
-    };
-    let n_goals = if lines == 2 { 2 } else { 1 };
+fn solve_inner(board: Board, queue: &[Piece], lines: usize, saves: u8) -> bool {
+    debug_assert!(lines == 2 || lines == 4, "lines must be 2 or 4");
     debug_assert!(queue.len() < 1 << 20, "level does not fit in the key");
+    let two_l = lines == 2;
 
     let board = (board & FIELD).clearshift();
-    if goals[..n_goals].contains(&board) {
+    // The start state has an empty hold, which only meets a save when every
+    // hold value does.
+    if (board == PC_4 || (two_l && board == PC_2)) && holds(saves, None) {
         return true;
+    }
+
+    // `suffix[level]` is the set of hold values that the pieces in
+    // `queue[level..]` can put in hold later. It is only needed to prune, and
+    // it is two entries longer than the queue because the held piece can be
+    // placed after the queue ends.
+    let mut suffix = Vec::new();
+    if saves != SAVE_ANY {
+        suffix.resize(queue.len() + 2, 0);
+        for level in (0..queue.len()).rev() {
+            suffix[level] = suffix[level + 1] | hold_bit(Some(queue[level]));
+        }
     }
 
     TABLE.with(|t| {
@@ -155,9 +225,9 @@ fn solve_inner(board: Board, queue: &[Piece], lines: usize) -> bool {
         // Reset at the start. A panic in an earlier call cannot leave stale keys.
         table.reset();
         let mut search = Search {
-            goals,
-            n_goals,
-            two_l: lines == 2,
+            two_l,
+            saves,
+            suffix: &suffix,
             queue,
             table: &mut table,
         };
@@ -166,14 +236,16 @@ fn solve_inner(board: Board, queue: &[Piece], lines: usize) -> bool {
 }
 
 struct Search<'a> {
-    /// Terminal states accepted as success. Only the first `n_goals` entries
-    /// are live.
-    goals: [Board; 2],
-    n_goals: usize,
-    /// True when the `PC_2` goal is present alongside `PC_4`. The `PC_2` goal
+    /// True when the `PC_2` field is a goal alongside `PC_4`. The `PC_2` goal
     /// forces the cell bound to track the lower and full targets separately,
     /// and it disables the full-field fill heuristics.
     two_l: bool,
+    /// The hold values a goal state must have in hold. `SAVE_ANY` accepts any
+    /// hold, the empty one included.
+    saves: u8,
+    /// `suffix[level]` is the set of hold values that the pieces in
+    /// `queue[level..]` can put in hold. Empty when `saves` is `SAVE_ANY`.
+    suffix: &'a [u8],
     queue: &'a [Piece],
     table: &'a mut Table,
 }
@@ -182,7 +254,14 @@ impl Search<'_> {
     /// Checks a candidate state. Expands it if it is new and not pruned.
     /// Returns whether a goal was reached.
     fn visit(&mut self, level: usize, b: Board, hold: Option<Piece>) -> bool {
-        if self.goals[..self.n_goals].contains(&b) {
+        // The full field takes the decision on its own. No piece fits on it,
+        // so no transition leaves it and the hold can never change.
+        if b == PC_4 {
+            return holds(self.saves, hold);
+        }
+        // The two-line field keeps the search open. Its two rows above stay
+        // available, so a path can go on toward the full field.
+        if self.two_l && b == PC_2 && holds(self.saves, hold) {
             return true;
         }
 
@@ -201,6 +280,14 @@ impl Search<'_> {
             return false;
         }
 
+        // Every hold value that can appear below this state is the current one
+        // or a piece from `queue[level..]`, and no other, because `expand`
+        // leaves the hold alone or moves the current piece into it. When none
+        // of those values meets the save, no state below can reach a goal.
+        if self.saves != SAVE_ANY && (hold_bit(hold) | self.suffix[level]) & self.saves == 0 {
+            return false;
+        }
+
         // The remaining placements can add at most `4 * remaining` cells.
         // The held piece is still placeable once the queue empties, so count
         // it too.
@@ -211,7 +298,7 @@ impl Search<'_> {
             // only rows 0-1 set and empty rows above. Either bound keeps the
             // state alive.
             let full_ok = 40 - cells <= 4 * remaining;
-            let low_ok = b.0 & !self.goals[0].0 == 0 && 20 - cells <= 4 * remaining;
+            let low_ok = b.0 & !PC_2.0 == 0 && 20 - cells <= 4 * remaining;
             if !full_ok && !low_ok {
                 return false;
             }
@@ -304,9 +391,6 @@ fn fast_moves(piece: Piece, board: Board) -> Moves {
 /// The caller must have checked that `b` has no cell outside the field.
 #[inline]
 const fn pack(level: usize, b: Board, hold: Option<Piece>) -> u64 {
-    let code = match hold {
-        None => 0,
-        Some(p) => p as u64 + 1,
-    };
+    let code = hold_code(hold) as u64;
     b.0 | (code << 40) | ((level as u64) << 43)
 }

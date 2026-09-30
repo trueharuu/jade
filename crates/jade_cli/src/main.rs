@@ -19,7 +19,8 @@ pub enum Command {
 
     /// Decide whether the queue can reach a full board using hold.
     Solve {
-        queue: Pattern,
+        #[arg(short, long)]
+        pattern: Pattern,
         /// Starting field for the solve, as a fumen. Defaults to an empty
         /// field.
         #[arg(short, long)]
@@ -28,7 +29,8 @@ pub enum Command {
         /// field.
         #[arg(long = "2l")]
         two_l: bool,
-        /// The required saves for a queue to be a matched solve.
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
         #[arg(short, long)]
         save: Option<Pattern>,
     },
@@ -52,7 +54,8 @@ pub enum Command {
         /// field.
         #[arg(long = "2l")]
         two_l: bool,
-        /// The required saves for a queue to be a matched solve.
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
         #[arg(short, long)]
         save: Option<Pattern>,
     },
@@ -120,12 +123,13 @@ pub fn main() {
         }
 
         Command::Solve {
-            queue,
+            pattern: queue,
             field,
             two_l,
             save,
         } => {
             let board = parse_board(field.as_deref());
+            let save = parse_save(save.as_ref());
 
             // A field that can never be filled has no solution. Reject it
             // before the search, which would otherwise prune the root anyway.
@@ -134,7 +138,10 @@ pub fn main() {
                 std::process::exit(1);
             }
 
-            let yes = queue.expand().iter().any(|q| has_solve(board, q, two_l));
+            let yes = queue
+                .expand()
+                .iter()
+                .any(|q| has_solve(board, q, two_l, save.as_deref()));
 
             if yes {
                 // return success exit code
@@ -152,6 +159,7 @@ pub fn main() {
             save,
         } => {
             let board = parse_board(field.as_deref());
+            let save = parse_save(save.as_ref());
             let queues = pattern.expand();
             let total = queues.len();
 
@@ -162,7 +170,10 @@ pub fn main() {
                 std::process::exit(0);
             }
 
-            let solved = queues.iter().filter(|q| has_solve(board, q, two_l)).count();
+            let solved = queues
+                .iter()
+                .filter(|q| has_solve(board, q, two_l, save.as_deref()))
+                .count();
 
             println!("{solved}/{total}");
         }
@@ -184,11 +195,30 @@ fn parse_board(field: Option<&str>) -> Board {
     }
 }
 
-/// Returns whether `queue` reaches the goal field from `board`.
-fn has_solve(board: Board, queue: &[Piece], two_l: bool) -> bool {
-    if two_l {
-        jade_solve::reachable_2l(board, queue)
-    } else {
-        jade_solve::reachable(board, queue)
+/// The piece types a `--save` pattern accepts, or `None` when the flag is
+/// absent. A goal leaves one piece in hold, so every expansion of the pattern
+/// must be a single piece. Exits the process on any other expansion.
+fn parse_save(save: Option<&Pattern>) -> Option<Vec<Piece>> {
+    let pattern = save?;
+    let expansions = pattern.expand();
+    if expansions.is_empty() || expansions.iter().any(|e| e.len() != 1) {
+        eprintln!(
+            "error: --save '{pattern}' must expand to at least one single piece, \
+             such as T, [TI] or *"
+        );
+        std::process::exit(2);
+    }
+    // The set of expansions holds no duplicate, so the pieces are distinct.
+    Some(expansions.into_iter().map(|e| e[0]).collect())
+}
+
+/// Returns whether `queue` reaches the goal field from `board`. A `save` set
+/// also requires the hold to hold one of its pieces at that moment.
+fn has_solve(board: Board, queue: &[Piece], two_l: bool, save: Option<&[Piece]>) -> bool {
+    match (save, two_l) {
+        (None, false) => jade_solve::reachable(board, queue),
+        (None, true) => jade_solve::reachable_2l(board, queue),
+        (Some(save), false) => jade_solve::reachable_save(board, queue, save),
+        (Some(save), true) => jade_solve::reachable_save_2l(board, queue, save),
     }
 }

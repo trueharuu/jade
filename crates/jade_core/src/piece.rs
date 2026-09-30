@@ -131,30 +131,14 @@ impl Piece {
         }
     }
 
-    /// Spawn height adjustment used by spawn placement logic.
+    /// Spawn height for the North spawn orientation.
     #[inline]
     #[must_use]
     pub const fn h_spawn(self) -> i32 {
-        if matches!(self, Piece::I) { 2 } else { 1 }
-    }
-
-    /// Placement height adjustment used by grounded placement logic.
-    #[inline]
-    #[must_use]
-    pub const fn h_place(self) -> i32 {
-        2 + (matches!(self, Piece::I) as i32) - (matches!(self, Piece::O) as i32)
-    }
-
-    /// Generation height adjustment used by placement generation.
-    #[inline]
-    #[must_use]
-    pub const fn h_gen(self) -> i32 {
-        if matches!(self, Piece::I | Piece::T) {
-            2
-        } else if matches!(self, Piece::O) {
-            0
-        } else {
-            1
+        match self {
+            Self::T | Self::J | Self::L | Self::S | Self::Z => 4,
+            Self::O => 4,
+            Self::I => 4,
         }
     }
 }

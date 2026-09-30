@@ -1,5 +1,4 @@
 use jade_core::board::Board;
-use jade_core::header::LINES;
 use jade_core::header::WIDTH;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
@@ -45,8 +44,7 @@ impl Moves {
         MovesIter {
             moves: self,
             rotation: 0,
-            x: 0,
-            y: 0,
+            mask: 0,
         }
     }
 }
@@ -55,8 +53,7 @@ impl Moves {
 pub struct MovesIter<'a> {
     moves: &'a Moves,
     rotation: usize,
-    x: i32,
-    y: i32,
+    mask: u64,
 }
 
 impl Iterator for MovesIter<'_> {
@@ -64,36 +61,26 @@ impl Iterator for MovesIter<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while self.rotation < Rotation::NB {
-            // let board = match self.spin {
-            //     0 => &self.moves.none[self.rotation],
-            //     1 => &self.moves.mini[self.rotation],
-            //     2 => &self.moves.full[self.rotation],
-            //     _ => unreachable!(),
-            // };
-            let board = self.moves.mask[self.rotation];
-
-            while self.y < LINES {
-                while self.x < WIDTH {
-                    if board.get(self.x, self.y) {
-                        let mv = Move::new(
-                            self.moves.piece,
-                            self.x,
-                            self.y,
-                            Rotation::from_u8(self.rotation as u8),
-                        );
-                        self.x += 1;
-                        return Some(mv);
-                    }
-                    self.x += 1;
+        loop {
+            if self.mask == 0 {
+                if self.rotation >= Rotation::NB {
+                    return None;
                 }
-                self.x = 0;
-                self.y += 1;
+                self.mask = self.moves.mask[self.rotation].0;
+                self.rotation += 1;
+                continue;
             }
-            self.y = 0;
-            self.rotation += 1;
+            let tz = self.mask.trailing_zeros() as i32;
+            let x = tz % WIDTH;
+            let y = tz / WIDTH;
+            self.mask &= self.mask - 1;
+            return Some(Move::new(
+                self.moves.piece,
+                x,
+                y,
+                Rotation::from_u8((self.rotation - 1) as u8),
+            ));
         }
-        None
     }
 }
 

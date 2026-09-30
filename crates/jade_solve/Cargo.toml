@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+fumen = "0.1.2"
 jade_core = { version = "0.1.0", path = "../jade_core" }
 jade_nav = { version = "0.1.0", path = "../jade_nav" }
 rustc-hash = "2"

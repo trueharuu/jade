@@ -34,7 +34,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     });
 
     let sx = 4;
-    let sy = 5 - P.h_spawn();
+    let sy = P.h_spawn();
 
     // The oracle starts its BFS from the North spawn origin and reports
     // nothing when that origin is blocked, so fast must match.

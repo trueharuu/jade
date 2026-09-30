@@ -47,8 +47,12 @@ selector.
 New `solve` subcommand in `jade_cli`:
 
 ```
-jade solve <queue-pattern> [--field <fumen>]
+jade solve <queue-pattern> [--field <fumen>] [--2l]
 ```
+
+`--2l` counts a two-line PC as success as well. A state equal to
+`Board::lines(2)` (two full rows, rows 2-3 empty) or to the full `PC_4` field
+is success.
 
 The command prints one line per pattern expansion:
 
@@ -63,10 +67,15 @@ No lock count is printed. The output is boolean only.
 
 ### Semantics
 
-- Target: a state equal to `Board(header::PC_4)`, meaning all 40 play-field
-  cells are filled.
+- Full-field target: a state equal to `Board(header::PC_4)`, meaning all 40
+  play-field cells are filled.
+- `--2l` targets: `PC_2` (two full rows, rows 2-3 empty) or `PC_4`. A
+  `PC_2` path must never fill a cell above the two target rows; but since
+  `PC_4` is also success, the search does not prune higher cells. The
+  `has_isolated_cell` and `has_imbalanced_split` checks reason about the
+  full four-row field and apply only when `PC_4` is the sole target.
 - Each placement maps `board` to `(board | m.mask()).clearshift()`.
-- Reaching `PC_4` at any prefix of the queue is success.
+- Reaching the target at any prefix of the queue is success.
 - The initial board is masked to the 4-row field and `clearshift()`ed at
   entry.
 - The output of `reachable` is `true` when a path exists, `false` otherwise.
@@ -80,9 +89,10 @@ No lock count is printed. The output is boolean only.
 2. **Corollary.**
    - If `popcount(init) % 4 != 0`, then `PC_4` is unreachable regardless of
      the queue. Reject the whole query in O(1).
-   - From level `i`, at most `queue.len() - i` placements remain, so at most
-     `4 * (queue.len() - i)` cells can be added. If
-     `40 - popcount(board) > 4 * (queue.len() - i)`, the state is dead.
+- From level `i`, at most `queue.len() - i` placements remain in the queue,
+      plus the held piece, so at most `4 * (queue.len() - i + has_hold)`
+      cells can be added. If
+      `40 - popcount(board) > 4 * (queue.len() - i + has_hold)`, the state is dead.
 
 ### Hold model
 
@@ -110,6 +120,11 @@ Transitions from `(b, i, hold)` where `i < queue.len()`:
 3. Hold with a non-empty hold `Some(h)`:
    - Place `h`.
    - Recurse into level `i + 1` with `hold = Some(queue[i])`.
+4. Queue exhausted (`i == queue.len()`), non-empty hold `Some(h)`:
+   - The held piece is still legal to place.
+   - Place `h`.
+   - Recurse into level `i + 1` with `hold = None`. The level-`len` states
+     are only target-checked, never re-expanded: no pieces remain.
 
 `i` strictly increases in every transition, by 1 or 2. The state that exists
 just after a swap ("`queue[i]` in hold, current is `queue[i + 1]`") is
@@ -118,7 +133,8 @@ no movegen: `moves(queue[i + 1], b)` is computed exactly once.
 
 Completeness: every lock sequence from a state either locks the current piece
 or swaps and then locks the swapped-in piece, since a second swap needs a lock
-first. Transitions 1-3 enumerate exactly these cases, and success is checked
+first. When the queue is empty, the only remaining play is the held piece.
+Transitions 1-4 enumerate exactly these cases, and success is checked
 for every child. `PC_4` reached at any point returns `true`.
 
 ### Search strategy: level frontier
@@ -144,10 +160,15 @@ reachable(board, queue):
   buckets: HashMap<usize, HashSet<u64>>   // only levels i, i+1, i+2 live
   insert(0, board, None)
 
-  for i in 0..queue.len():
+  for i in 0..=queue.len():
     cur = buckets.remove(i); skip if empty
+    if i == queue.len():      // release: play the held piece, if any
+      for each state (b, Some(h)) in cur:
+        for each transition 4 of (b, i, h):
+          if insert(i + 1, b | h.mask() cleared, None): return true
+      continue
     for each state (b, h) in cur:
-      for each transition 1-3 of (b, i, h):
+      for each transition 1-4 of (b, i, h):
         c = (b | m.mask()).clearshift()
         if insert(i + 1 or i + 2, c, new_hold): return true
   return false
@@ -155,13 +176,14 @@ reachable(board, queue):
 insert(level, b, h) -> bool:  // true means "PC_4 found"
   if b == PC_4:                        return true
   if b.has_isolated_cell() || b.has_imbalanced_split(): return false
-  if 40 - popcount(b) > 4 * (queue.len() - level): return false
+  if 40 - popcount(b) > 4 * (queue.len() - level + has_hold): return false
   buckets.entry(level).or_default().insert(pack(b, h))
   return false
 ```
 
 Pruning inside `insert` keeps dead states out of the frontier early. The
-`i == queue.len()` bucket holds only non-`PC_4` terminal states and is dropped.
+`i == queue.len()` bucket holds either `PC_4` or a state with a held piece
+that still has one legal placement; the release transition (4) consumes it.
 
 The internal loop tracks the level of the first `PC_4` for tests only. The
 public API returns `bool`.
@@ -313,3 +335,30 @@ Verification: `cargo test -p jade_solve` passes, and
 7. Run clippy and the manual CLI checks.
 8. Compare the implementation against this plan. Document deviations.
 9. Commit the change as one commit.
+
+## Deviations
+
+- Unit tests are deferred (step 6). The `solve_inner` internal depth helper
+  stays in place for the planned tests.
+- `pc(<queue>)` prints the pattern as typed, including wildcards; with
+  non-concrete patterns the answer is `yes` when any expansion reaches
+  the target field.
+- The fast generator returns no placements when the active piece's spawn
+  cell is blocked. The solver inherits this: a playable state must keep the
+  next piece's spawn cell clear.
+- The held-piece transition plays the swapped-in piece and requires a queue
+  successor for an empty-hold swap; a swap with an empty box and no next
+  piece generates nothing (the piece is unplayable there).
+- The solver is parametrized by the target line count (`4` or `2`). The CLI
+  flag `--2l` selects the `PC_2` goal, added to the `PC_4` goal, through
+  `jade_solve::reachable_2l`.
+- The search is single-threaded. It has no thread pool, no atomics, and no
+  `rayon` dependency. A level is expanded in full before the next level starts.
+- `reachable_debug` and `reachable_2l_debug` are removed, and so is the `--debug`
+  CLI flag that this document previously described. That flag was never
+  implemented. The public API of `jade_solve` is now `reachable`,
+  `reachable_2l`, `is_unfillable`, and `parse_fumen`.
+- `allow_hold` is always `true` at every call site. It is kept so the planned
+  no-hold test can use it. It does not correspond to any reachable mode.
+- `solve_inner` returns `bool`. The goal level is no longer reported, so the
+  minimality claim above cannot be checked until the planned tests land.

@@ -163,7 +163,9 @@ dependencies = [
  "clap",
  "itertools",
  "jade_core",
+ "jade_nav",
  "jade_pattern",
+ "jade_solve",
 ]
 
 [[package]]
@@ -202,6 +204,7 @@ dependencies = [
 name = "jade_solve"
 version = "0.1.0"
 dependencies = [
+ "fumen",
  "jade_core",
  "jade_nav",
  "rustc-hash",
@@ -264,6 +267,7 @@ dependencies = [
  "jade_core",
  "jade_nav",
  "jade_pattern",
+ "jade_solve",
 ]
 
 [[package]]

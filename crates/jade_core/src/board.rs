@@ -299,6 +299,20 @@ impl Board {
         Self(out)
     }
 
+    /// Returns whether any of the six rows is completely filled.
+    #[inline]
+    #[must_use]
+    pub const fn has_full_row(self) -> bool {
+        const ROW: u64 = 0x3FF;
+        let b = self.0;
+        (b & ROW) == ROW
+            || ((b >> 10) & ROW) == ROW
+            || ((b >> 20) & ROW) == ROW
+            || ((b >> 30) & ROW) == ROW
+            || ((b >> 40) & ROW) == ROW
+            || ((b >> 50) & ROW) == ROW
+    }
+
     /// Returns an iterator over the positions of filled cells in the board.
     #[inline]
     #[must_use]

@@ -25,7 +25,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let fit = fit_map::<P>();
 
     let sx = 4;
-    let sy = 5 - P.h_spawn();
+    let sy = P.h_spawn();
 
     let spawn = Move::new(P, sx, sy, Rotation::North);
     if check::<P>(&usable, spawn.x(), spawn.y(), spawn.rotation() as usize) {

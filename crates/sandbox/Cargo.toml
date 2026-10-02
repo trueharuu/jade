@@ -8,6 +8,7 @@ jade_core = { version = "0.1.0", path = "../jade_core" }
 jade_nav = { version = "0.1.0", path = "../jade_nav" }
 jade_pattern = { version = "0.1.0", path = "../jade_pattern" }
 jade_solve = { version = "0.1.0", path = "../jade_solve" }
+fumen = "0.1.2"
 
 [lints]
 workspace = true

@@ -1,3 +1,5 @@
+pub mod unglue;
+
 use std::io::BufWriter;
 use std::io::Write;
 
@@ -215,8 +217,12 @@ pub fn main() {
             for queue in &pattern.expand() {
                 let mut emit = |path: &[Move]| {
                     let mut f = Fumen::default();
+                    let mut b = Board::empty();
                     for m in path {
                         let pg = f.add_page();
+                        let cl = b.line_clears();
+                        b |= m.mask();
+                        b = b.clearshift();
                         pg.piece = Some(fumen::Piece {
                             kind: match m.piece() {
                                 Piece::T => fumen::PieceType::T,
@@ -234,7 +240,7 @@ pub fn main() {
                                 Rotation::West => fumen::RotationState::West,
                             },
                             x: m.x() as u32,
-                            y: m.y() as u32,
+                            y: m.y() as u32 - cl as u32,
                         });
                     }
                     let _ = writeln!(out, "{}", f.encode());

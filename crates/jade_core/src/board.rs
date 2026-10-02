@@ -299,6 +299,20 @@ impl Board {
         Self(out)
     }
 
+    #[inline]
+    #[must_use]
+    pub const fn line_clears(self) -> i32 {
+        let mut count = 0;
+        let mut row = 0;
+        while row < LINES {
+            if (self.0 & row_word(row)) == row_word(row) {
+                count += 1;
+            }
+            row += 1;
+        }
+        count
+    }
+
     /// Returns whether any of the six rows is completely filled.
     #[inline]
     #[must_use]

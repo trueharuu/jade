@@ -122,6 +122,7 @@ impl<const LIMITS: bool> Walk<'_, LIMITS> {
         if LIMITS && !hit {
             self.dead.insert(key);
         }
+        
         hit
     }
 

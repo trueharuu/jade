@@ -7,7 +7,7 @@ use std::str::FromStr;
 use crate::rotation::Rotation;
 
 /// A single tetromino type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ConstParamTy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ConstParamTy)]
 #[allow(missing_docs)]
 pub enum Piece {
     T = 0,

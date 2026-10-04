@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use jade_core::piece::Piece;
-use std::{collections::HashSet, fmt::Display};
+use std::collections::BTreeSet;
+use std::fmt::Display;
 
 // X;Y
 #[derive(Clone, PartialEq, Debug)]
@@ -59,8 +60,8 @@ impl std::fmt::Display for PatternError {
 
 impl Pattern {
     #[must_use]
-    pub fn expand(&self) -> HashSet<Vec<Piece>> {
-        let mut result = HashSet::new();
+    pub fn expand(&self) -> BTreeSet<Vec<Piece>> {
+        let mut result = BTreeSet::new();
 
         for segment in &self.0 {
             result.extend(segment.expand());

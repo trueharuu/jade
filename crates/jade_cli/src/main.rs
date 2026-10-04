@@ -1,18 +1,19 @@
 pub mod unglue;
 
-use std::io::BufWriter;
-use std::io::Write;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use clap::Parser;
 use fumen::Fumen;
 use itertools::Itertools;
 use jade_core::board::Board;
 use jade_core::piece::Piece;
-use jade_core::placement::Move;
 use jade_core::render;
 use jade_core::rotation::Rotation;
 use jade_nav::oracle;
 use jade_pattern::Pattern;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 
 #[derive(clap::Parser)]
 pub struct Program {
@@ -211,19 +212,21 @@ pub fn main() {
             // One set for the whole command, not one per queue. Hold lets a
             // path use fewer queue pieces than the queue holds, so one sequence
             // can be reachable from more than one queue, and it prints once.
-            let mut seen = jade_solve::Paths::default();
-            let mut out = BufWriter::new(std::io::stdout().lock());
+            let seen = Arc::new(Mutex::new(jade_solve::Paths::default()));
 
-            for queue in &pattern.expand() {
-                let mut emit = |path: &[Move]| {
-                    let mut f = Fumen::default();
+            pattern.expand().into_par_iter().for_each(|queue| {
+                // println!("{queue:?}");
+                let mut x = seen.lock().unwrap();
+                let paths = jade_solve::congruents(target, &queue, &mut x);
+                for p in paths {
                     let mut b = Board::empty();
-                    for m in path {
-                        let pg = f.add_page();
-                        let cl = b.line_clears();
+                    let mut f = Fumen::default();
+                    for m in p {
+                        let lc = b.line_clears();
                         b |= m.mask();
                         b = b.clearshift();
-                        pg.piece = Some(fumen::Piece {
+                        let page = f.add_page();
+                        page.piece = Some(fumen::Piece {
                             kind: match m.piece() {
                                 Piece::T => fumen::PieceType::T,
                                 Piece::I => fumen::PieceType::I,
@@ -240,21 +243,11 @@ pub fn main() {
                                 Rotation::West => fumen::RotationState::West,
                             },
                             x: m.x() as u32,
-                            y: m.y() as u32 - cl as u32,
+                            y: m.y() as u32 - lc as u32,
                         });
                     }
-                    let _ = writeln!(out, "{}", f.encode());
-                };
-                jade_solve::congruents(target, queue, &mut seen, &mut emit);
-            }
-
-            // The command returns instead of exiting, so the buffer is flushed
-            // here. An empty result is not a failure, so there is no exit code
-            // for it.
-            if let Err(err) = out.flush() {
-                eprintln!("error: failed to write results: {err}");
-                std::process::exit(1);
-            }
+                }
+            });
         }
     }
 }

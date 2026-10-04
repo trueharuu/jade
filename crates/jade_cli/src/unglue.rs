@@ -1,6 +1,6 @@
 // port of marfung37's `unglue.py`.
 
-pub fn unglue(fumen: &str) -> String {
+pub fn unglue(_: &str) -> String {
     todo!()
 }
 

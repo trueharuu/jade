@@ -2,8 +2,15 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use rayon::prelude::*;
 
-use crate::parse::Saves;
-use crate::solve::{moves, piece_from_index, save_ok, PC_2, PC_4};
+use crate::moves::moves;
+use crate::rules::PC_2;
+use crate::rules::PC_4;
+use crate::rules::completes_goal;
+use crate::rules::outside_playfield;
+use crate::rules::piece_from_index;
+use crate::rules::pruned;
+use crate::saves::Saves;
+use crate::saves::save_ok;
 
 /// One goal board and the data needed to solve it.
 struct Target {
@@ -138,6 +145,10 @@ fn decode(code: u64, n: usize, buf: &mut [Piece; 12]) -> &[Piece] {
 /// 1. Place the active piece.
 /// 2. Place the hold piece (skipped if it equals the active piece).
 /// 3. If hold is empty, hold the active piece and place the next piece.
+///
+/// The two must stay in step with each other. They are not merged because
+/// `Solver::search` carries a board and a failure cache and this carries an
+/// order code.
 #[allow(clippy::too_many_arguments)]
 fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
     queue: &[Piece],
@@ -182,11 +193,6 @@ fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
     }
 }
 
-#[inline(always)]
-fn board_pruned(board: Board) -> bool {
-    board.has_imbalanced_split() || board.has_isolated_cell()
-}
-
 /// Returns the sorted subset of `codes` (orders of `k` pieces, sorted, unique)
 /// that reach `goal` from `board` with no hold.
 fn solve_orders(board: Board, goal: Board, k: usize, codes: &[u64]) -> Vec<u64> {
@@ -196,7 +202,7 @@ fn solve_orders(board: Board, goal: Board, k: usize, codes: &[u64]) -> Vec<u64> 
     if k == 0 {
         return if board == goal { codes.to_vec() } else { Vec::new() };
     }
-    if board_pruned(board) {
+    if pruned(board) {
         return Vec::new();
     }
     expand(&[board.0], codes, 0, k, goal)
@@ -236,7 +242,10 @@ fn expand(boards: &[u64], codes: &[u64], depth: usize, k: usize, goal: Board) ->
 
         if depth + 1 == k {
             // Last piece. The codes are unique, so this group has one code.
-            return if boards.iter().any(|&bd| completes(Board(bd), piece, goal)) {
+            return if boards
+                .iter()
+                .any(|&bd| completes_goal(Board(bd), piece, goal))
+            {
                 vec![codes[a]]
             } else {
                 Vec::new()
@@ -246,12 +255,12 @@ fn expand(boards: &[u64], codes: &[u64], depth: usize, k: usize, goal: Board) ->
         let mut next: Vec<u64> = Vec::new();
         for &bd in boards {
             let bd = Board(bd);
-            for m in moves(bd, piece).iter() {
+            for m in &moves(bd, piece) {
                 let mut n = bd;
                 n |= m.mask();
                 n = n.clearshift();
                 // Bits at or above bit 40 are outside the playfield.
-                if n.0 >> 40 != 0 || board_pruned(n) {
+                if outside_playfield(n) || pruned(n) {
                     continue;
                 }
                 next.push(n.0);
@@ -276,21 +285,5 @@ fn expand(boards: &[u64], codes: &[u64], depth: usize, k: usize, goal: Board) ->
             .collect()
     } else {
         groups.iter().flat_map(run).collect()
-    }
-}
-
-/// Returns whether placing `piece` on `board` reaches `goal`.
-#[inline(always)]
-fn completes(board: Board, piece: Piece, goal: Board) -> bool {
-    if goal == PC_4 {
-        // The placement must fill exactly the 4 empty cells.
-        let need = Board(PC_4.0 & !board.0);
-        moves(board, piece).iter().any(|m| m.mask() == need)
-    } else {
-        moves(board, piece).iter().any(|m| {
-            let mut n = board;
-            n |= m.mask();
-            n.clearshift() == goal
-        })
     }
 }

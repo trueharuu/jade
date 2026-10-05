@@ -2,13 +2,13 @@ use std::cell::RefCell;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
-use jade_nav::buffer::Moves;
-use jade_nav::fast;
 
-use crate::parse::Saves;
-
-pub const PC_4: Board = Board::lines(4);
-pub const PC_2: Board = Board::lines(2);
+use crate::rules::completes_goal;
+use crate::rules::outside_playfield;
+use crate::rules::pieces_to_goal;
+use crate::rules::pruned;
+use crate::saves::Saves;
+use crate::saves::save_ok;
 
 /// Failure cache size is `2^CACHE_BITS` words (128 KB at 14 bits).
 const CACHE_BITS: u32 = 14;
@@ -19,41 +19,11 @@ const HASH_MUL: u64 = 0x9E37_79B9_7F4A_7C15;
 /// `Node` stores the depth in 4 bits.
 const MAX_QUEUE: usize = 11;
 
-// `Node::hold` transmutes `value - 1` to `Piece`. This is valid only for a
-// one-byte enum with discriminants 0..=6.
-const _: () = {
-    assert!(std::mem::size_of::<Piece>() == 1);
-    assert!((Piece::T as u8) < 7);
-    assert!((Piece::I as u8) < 7);
-    assert!((Piece::J as u8) < 7);
-    assert!((Piece::L as u8) < 7);
-    assert!((Piece::O as u8) < 7);
-    assert!((Piece::S as u8) < 7);
-    assert!((Piece::Z as u8) < 7);
-};
-
-/// Converts an index (`piece as u8`) back to a `Piece`. `i` must be below 7.
-#[inline(always)]
-pub(crate) const fn piece_from_index(i: u8) -> Piece {
-    debug_assert!(i < 7);
-    // Valid by the layout assertion above.
-    unsafe { std::mem::transmute(i) }
-}
-
-/// Returns whether a leftover piece satisfies `saves`.
-///
-/// An empty set means no restriction. Otherwise the leftover is the hold piece,
-/// or the active piece if hold is empty. No leftover fails a non-empty set.
-#[inline(always)]
-pub(crate) fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
-    if saves.is_empty() {
-        return true;
-    }
-    match hold.or(active) {
-        Some(p) => saves.has(p),
-        None => false,
-    }
-}
+// These keep the paths that existed before the module split working for
+// callers outside the crate.
+pub use crate::moves::moves;
+pub use crate::rules::PC_2;
+pub use crate::rules::PC_4;
 
 /// Fixed data of one `reachable` call.
 struct Ctx<'a> {
@@ -147,11 +117,7 @@ impl Solver {
 
         // Count bound. Hold is empty at the root, so a non-empty `saves` needs
         // one extra piece as the leftover.
-        let k = if two_l && cells < 20 {
-            (20 - cells) / 4
-        } else {
-            (40 - cells) / 4
-        } as usize;
+        let k = pieces_to_goal(cells, two_l);
         if queue.len() < k + usize::from(!saves.is_empty()) {
             return false;
         }
@@ -182,6 +148,11 @@ impl Solver {
 
     /// Expands `node`. The node is not a goal, is not pruned, and passed the
     /// count bound.
+    ///
+    /// The three hold options below must stay in step with `percent::walk`.
+    /// That function encodes the same rules without a board. The two are not
+    /// merged because this one carries a board and a failure cache and that one
+    /// carries an order code.
     fn search(&mut self, ctx: &Ctx, node: &Node) -> bool {
         let d = node.depth() as usize;
         let Some(&active) = ctx.queue.get(d) else {
@@ -231,18 +202,13 @@ impl Solver {
             if !save_ok(ctx.saves, hold, active) {
                 return false;
             }
-            let need = Board(PC_4.0 & !board.0);
-            return moves(board, piece).iter().any(|m| m.mask() == need);
+            return completes_goal(board, piece, PC_4);
         }
 
         // All children share these values. They are checked before `moves`,
         // which is the main cost.
         let goal20 = ctx.two_l && cells == 20 && save_ok(ctx.saves, hold, active);
-        let k = if ctx.two_l && cells < 20 {
-            (20 - cells) / 4
-        } else {
-            (40 - cells) / 4
-        } as usize;
+        let k = pieces_to_goal(cells, ctx.two_l);
         // With empty hold and a save set, one more piece must remain as leftover.
         let extra = usize::from(!ctx.saves.is_empty() && hold.is_none());
         let can_continue = ctx.queue.len() - depth >= k + extra;
@@ -250,7 +216,7 @@ impl Solver {
             return false;
         }
 
-        for m in moves(board, piece).iter() {
+        for m in &moves(board, piece) {
             let mut next = board;
             next |= m.mask();
             next = next.clearshift();
@@ -263,7 +229,7 @@ impl Solver {
             }
 
             // Bits at or above bit 40 would overwrite the hold and depth fields.
-            if next.0 >> 40 != 0 {
+            if outside_playfield(next) {
                 continue;
             }
 
@@ -303,7 +269,7 @@ thread_local! {
 /// `two_l` is true.
 ///
 /// Returns `false` if the cell count of `board` is not a multiple of 4.
-/// Panics if `queue.len() > 15`.
+/// Panics if `queue.len() > MAX_QUEUE`.
 ///
 /// This uses a thread-local [`Solver`]. Own a `Solver` to avoid the lookup.
 #[must_use]
@@ -347,12 +313,15 @@ impl Node {
         ((self.0 >> 44) & 0xf) as u8
     }
 
-    /// Returns whether the board can never be pruned to meet any goal.
+    /// Returns whether the board can never reach any goal.
+    #[inline]
+    #[must_use]
     pub const fn pruned(&self) -> bool {
-        let board = self.board();
-        board.has_imbalanced_split() || board.has_isolated_cell()
+        pruned(self.board())
     }
 
+    /// Returns whether the board is `PC_2` or `PC_4` as `two_l` requires, and
+    /// the leftover satisfies `save`.
     pub fn is_goal(&self, two_l: bool, save: Saves, active: Option<Piece>) -> bool {
         let board = self.board();
         let is_pc = if two_l {
@@ -364,42 +333,19 @@ impl Node {
     }
 }
 
-#[must_use]
-pub fn moves(board: Board, piece: Piece) -> Moves {
-    match piece {
-        Piece::T => fast::generate::<{ Piece::T }>(&board),
-        Piece::I => fast::generate::<{ Piece::I }>(&board),
-        Piece::J => fast::generate::<{ Piece::J }>(&board),
-        Piece::L => fast::generate::<{ Piece::L }>(&board),
-        Piece::O => fast::generate::<{ Piece::O }>(&board),
-        Piece::S => fast::generate::<{ Piece::S }>(&board),
-        Piece::Z => fast::generate::<{ Piece::Z }>(&board),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const PIECES: [Piece; 7] = [
-        Piece::T,
-        Piece::I,
-        Piece::J,
-        Piece::L,
-        Piece::O,
-        Piece::S,
-        Piece::Z,
-    ];
 
     #[test]
     fn node_round_trip() {
         let board = Board(0xAB_CDEF_0123);
         for depth in 0..=15u8 {
-            let holds = std::iter::once(None).chain(PIECES.iter().map(|&p| Some(p)));
+            let holds = std::iter::once(None).chain(Piece::ALL.iter().map(|&p| Some(p)));
             for hold in holds {
                 let n = Node::new(board, hold, depth);
-                assert!(n.board() == board);
-                assert!(n.hold() == hold);
+                assert_eq!(n.board(), board);
+                assert_eq!(n.hold(), hold);
                 assert_eq!(n.depth(), depth);
             }
         }

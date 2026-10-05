@@ -6,8 +6,6 @@ pub const WIDTH: i32 = 10;
 pub const LINES: i32 = 6;
 pub const BITS: u32 = 60;
 pub const MASK: u64 = (1u64 << BITS) - 1;
-pub const PC_4: u64 = (1u64 << 40) - 1;
-pub const PC_2: u64 = (1u64 << 20) - 1;
 
 /// Rows of the play field. The rows above it are a piece movement margin.
 pub const PLAY_LINES: i32 = 4;

@@ -51,7 +51,7 @@ pub fn usable_cell<const P: Piece, const R: Rotation, const I: usize>(
 
     // The mino cell (cx, cy) must itself be inside the 10x6 board.
     // Shift the board mask into origin-space to obtain the valid origins.
-    usable & Board::lines(6).shifted(-cx, -cy)
+    usable
 }
 
 /// Returns origin positions where all four minos of `x(P, R)` are

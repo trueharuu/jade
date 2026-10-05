@@ -16,10 +16,16 @@ pub const TOP_RIGHT: &str = "┐";
 pub const BOTTOM_LEFT: &str = "└";
 /// Bottom-right corner.
 pub const BOTTOM_RIGHT: &str = "┘";
+/// Horizontal line.
+pub const LINE: &str = "──";
 /// A single filled cell.
 pub const CELL: &str = "\x1b[48;2;127;127;127m  \x1b[0m";
 /// A single empty cell.
 pub const EMPTY: &str = "  ";
+/// The intersection of the board and a placement cell.
+pub const INTERSECTION: &str = "--";
+/// The center cell of a piece.
+pub const CENTER: &str = "<>";
 
 /// Renders the cell for a given [`Piece`] color.
 #[inline]
@@ -42,7 +48,7 @@ pub fn cell(piece: Piece, i: &str) -> String {
 pub fn board(board: &Board) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(TOP_RIGHT);
     s.push('\n');
     for y in (0..6).rev() {
@@ -55,7 +61,7 @@ pub fn board(board: &Board) -> String {
     }
 
     s.push_str(BOTTOM_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(BOTTOM_RIGHT);
     s.push('\n');
 
@@ -68,7 +74,7 @@ pub fn board(board: &Board) -> String {
 pub fn merge(red: &Board, blue: &Board) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(TOP_RIGHT);
     s.push('\n');
     for y in (0..LINES).rev() {
@@ -89,7 +95,7 @@ pub fn merge(red: &Board, blue: &Board) -> String {
     }
 
     s.push_str(BOTTOM_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(BOTTOM_RIGHT);
     s.push('\n');
 
@@ -102,7 +108,7 @@ pub fn merge(red: &Board, blue: &Board) -> String {
 pub fn placement(board: &Board, mv: &Move) -> String {
     let mut s = String::new();
     s.push_str(TOP_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(TOP_RIGHT);
     s.push('\n');
     let cells = mv.mask();
@@ -112,11 +118,11 @@ pub fn placement(board: &Board, mv: &Move) -> String {
         for x in 0..WIDTH {
             s.push_str(&if cells.get(x, y) {
                 if board.get(x, y) {
-                    cell(mv.piece(), "--")
+                    cell(mv.piece(), INTERSECTION)
                 } else if (x, y) == ctr {
-                    cell(mv.piece(), "..")
+                    cell(mv.piece(), CENTER)
                 } else {
-                    cell(mv.piece(), "  ")
+                    cell(mv.piece(), EMPTY)
                 }
             } else if board.get(x, y) {
                 CELL.to_string()
@@ -129,7 +135,7 @@ pub fn placement(board: &Board, mv: &Move) -> String {
     }
 
     s.push_str(BOTTOM_LEFT);
-    s.push_str(&"─".repeat(WIDTH as usize * 2));
+    s.push_str(&LINE.repeat(WIDTH as usize));
     s.push_str(BOTTOM_RIGHT);
     s.push('\n');
 

@@ -8,6 +8,7 @@ use clap::Parser;
 use itertools::Itertools;
 use jade_core::board::Board;
 use jade_pattern::Pattern;
+use jade_solve::parse::Saves;
 use jade_solve::solve;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -26,11 +27,18 @@ pub enum Command {
     Solve {
         #[arg(short, long)]
         pattern: Pattern,
-
         /// Starting field for the solve, as a fumen. Defaults to an empty
         /// field.
         #[arg(short, long)]
         field: Option<String>,
+        /// Count a two-line (`PC_2`) field as success instead of the full
+        /// field.
+        #[arg(long = "2l")]
+        two_l: bool,
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
 
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
@@ -42,11 +50,18 @@ pub enum Command {
     Percent {
         #[arg(short, long)]
         pattern: Pattern,
-
         /// Starting field for the solve, as a fumen. Defaults to an empty
         /// field.
         #[arg(short, long)]
         field: Option<String>,
+        /// Count a two-line (`PC_2`) field as success instead of the full
+        /// field.
+        #[arg(long = "2l")]
+        two_l: bool,
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
 
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
@@ -120,6 +135,8 @@ pub fn main() {
         Command::Solve {
             pattern,
             field,
+            two_l,
+            save,
             hold,
         } => {
             let board = parse_board(field.as_deref());
@@ -132,7 +149,7 @@ pub fn main() {
             }
 
             let queue = &queues.first().unwrap();
-            if solve::reachable(board, queue, *hold) {
+            if solve::reachable(board, queue, two_l, save, *hold) {
                 std::process::exit(0);
             } else {
                 std::process::exit(1);
@@ -142,6 +159,8 @@ pub fn main() {
         Command::Percent {
             pattern,
             field,
+            two_l,
+            save,
             hold,
         } => {
             let board = parse_board(field.as_deref());
@@ -151,7 +170,7 @@ pub fn main() {
 
             let success = queues
                 .into_par_iter()
-                .map(|queue| solve::reachable(board, &queue, *hold))
+                .map(|queue| solve::reachable(board, &queue, two_l, save, *hold))
                 .filter(|x| *x)
                 .count();
 

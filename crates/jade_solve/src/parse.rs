@@ -1,5 +1,10 @@
-use fumen::{CellColor, Fumen};
+use std::fmt::Display;
+use std::str::FromStr;
+
+use fumen::CellColor;
+use fumen::Fumen;
 use jade_core::board::Board;
+use jade_core::piece::Piece;
 
 /// Decodes a one-page fumen into a `Board` of the first four rows.
 ///
@@ -24,8 +29,6 @@ pub fn parse_fumen(s: &str) -> Result<Board, String> {
         }
     }
 
-    
-
     Ok(board.clearshift())
 }
 
@@ -45,4 +48,60 @@ pub fn encode_fumen(board: &Board) -> String {
     }
 
     f.encode()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Saves(u8);
+
+impl Saves {
+    pub const fn empty() -> Self {
+        Saves(0)
+    }
+
+    pub const fn size(self) -> usize {
+        self.0.count_ones() as usize
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    // piece is from 0..=7
+    #[must_use]
+    pub const fn has(&self, piece: Piece) -> bool {
+        self.0 & (1 << (piece as u8)) != 0
+    }
+}
+
+impl FromStr for Saves {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut saves = 0;
+        for c in s.chars() {
+            let piece =
+                Piece::from_str(&c.to_string()).map_err(|_| format!("invalid piece: {c}"))?;
+            saves |= 1 << (piece as u8);
+        }
+        Ok(Saves(saves))
+    }
+}
+
+impl Display for Saves {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for piece in [
+            Piece::T,
+            Piece::I,
+            Piece::J,
+            Piece::L,
+            Piece::O,
+            Piece::S,
+            Piece::Z,
+        ] {
+            if self.has(piece) {
+                write!(f, "{piece}")?;
+            }
+        }
+
+        Ok(())
+    }
 }

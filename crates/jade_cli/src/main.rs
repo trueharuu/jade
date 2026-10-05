@@ -8,7 +8,10 @@ use clap::Parser;
 use itertools::Itertools;
 use jade_core::board::Board;
 use jade_pattern::Pattern;
-use jade_solve::solve::Saves;
+use jade_solve::parse::Saves;
+use jade_solve::solve;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 #[derive(clap::Parser)]
 pub struct Program {
     #[clap(subcommand)]
@@ -20,7 +23,7 @@ pub enum Command {
     #[clap(subcommand)]
     Pattern(PatternSubcommand),
 
-    /// Decide whether the queue can reach a full board using hold.
+    /// Decide whether the queue can perform a perfect clear on the given field.
     Solve {
         #[arg(short, long)]
         pattern: Pattern,
@@ -34,7 +37,30 @@ pub enum Command {
         two_l: bool,
         /// Require the hold to hold a piece of this pattern when the field
         /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
+
+        /// Whether to support hold.
+        #[arg(long, default_value_t = Hold(true))]
+        hold: Hold,
+    },
+
+    /// Returns the proportion of queues that can perform a perfect clear on the
+    /// given field.
+    Percent {
         #[arg(short, long)]
+        pattern: Pattern,
+        /// Starting field for the solve, as a fumen. Defaults to an empty
+        /// field.
+        #[arg(short, long)]
+        field: Option<String>,
+        /// Count a two-line (`PC_2`) field as success instead of the full
+        /// field.
+        #[arg(long = "2l")]
+        two_l: bool,
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
         /// Whether to support hold.
@@ -107,7 +133,7 @@ pub fn main() {
         },
 
         Command::Solve {
-            pattern: queue,
+            pattern,
             field,
             two_l,
             save,
@@ -115,9 +141,41 @@ pub fn main() {
         } => {
             let board = parse_board(field.as_deref());
 
+            let queues = pattern.expand();
+
+            if queues.len() > 1 {
+                eprintln!("error: pattern must expand to a single queue");
+                std::process::exit(2);
+            }
+
+            let queue = &queues.first().unwrap();
+            if solve::reachable(board, queue, two_l, save, *hold) {
+                std::process::exit(0);
+            } else {
+                std::process::exit(1);
+            }
         }
 
-        
+        Command::Percent {
+            pattern,
+            field,
+            two_l,
+            save,
+            hold,
+        } => {
+            let board = parse_board(field.as_deref());
+            let total = pattern.expand().len();
+
+            let queues = pattern.expand();
+
+            let success = queues
+                .into_par_iter()
+                .map(|queue| solve::reachable(board, &queue, two_l, save, *hold))
+                .filter(|x| *x)
+                .count();
+
+            println!("{success}/{total}");
+        }
     }
 }
 

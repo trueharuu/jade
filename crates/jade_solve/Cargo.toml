@@ -11,3 +11,6 @@ rustc-hash = "2"
 
 [lints]
 workspace = true
+
+[features]
+stats = []

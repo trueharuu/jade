@@ -1,5 +1,3 @@
-pub mod unglue;
-
 use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;

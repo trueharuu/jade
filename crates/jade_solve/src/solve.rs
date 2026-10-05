@@ -17,7 +17,7 @@ const CACHE_LEN: usize = 1 << CACHE_BITS;
 const KEY_MASK: u64 = (1 << 48) - 1;
 const HASH_MUL: u64 = 0x9E37_79B9_7F4A_7C15;
 /// `Node` stores the depth in 4 bits.
-const MAX_QUEUE: usize = 15;
+const MAX_QUEUE: usize = 11;
 
 // `Node::hold` transmutes `value - 1` to `Piece`. This is valid only for a
 // one-byte enum with discriminants 0..=6.
@@ -32,12 +32,20 @@ const _: () = {
     assert!((Piece::Z as u8) < 7);
 };
 
+/// Converts an index (`piece as u8`) back to a `Piece`. `i` must be below 7.
+#[inline(always)]
+pub(crate) const fn piece_from_index(i: u8) -> Piece {
+    debug_assert!(i < 7);
+    // Valid by the layout assertion above.
+    unsafe { std::mem::transmute(i) }
+}
+
 /// Returns whether a leftover piece satisfies `saves`.
 ///
 /// An empty set means no restriction. Otherwise the leftover is the hold piece,
 /// or the active piece if hold is empty. No leftover fails a non-empty set.
 #[inline(always)]
-fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
+pub(crate) fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
     if saves.is_empty() {
         return true;
     }
@@ -45,15 +53,6 @@ fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
         Some(p) => saves.has(p),
         None => false,
     }
-}
-
-/// Search counters. Enable with the `stats` cargo feature.
-#[cfg(feature = "stats")]
-#[derive(Default, Clone, Copy, Debug)]
-pub struct Stats {
-    pub nodes: u64,
-    pub generates: u64,
-    pub cache_hits: u64,
 }
 
 /// Fixed data of one `reachable` call.
@@ -73,8 +72,6 @@ struct Ctx<'a> {
 pub struct Solver {
     table: Box<[u64; CACHE_LEN]>,
     generation: u16,
-    #[cfg(feature = "stats")]
-    pub stats: Stats,
 }
 
 impl Default for Solver {
@@ -92,8 +89,6 @@ impl Solver {
                 .try_into()
                 .unwrap(),
             generation: 0,
-            #[cfg(feature = "stats")]
-            stats: Stats::default(),
         }
     }
 
@@ -188,11 +183,6 @@ impl Solver {
     /// Expands `node`. The node is not a goal, is not pruned, and passed the
     /// count bound.
     fn search(&mut self, ctx: &Ctx, node: &Node) -> bool {
-        #[cfg(feature = "stats")]
-        {
-            self.stats.nodes += 1;
-        }
-
         let d = node.depth() as usize;
         let Some(&active) = ctx.queue.get(d) else {
             return false;
@@ -260,11 +250,6 @@ impl Solver {
             return false;
         }
 
-        #[cfg(feature = "stats")]
-        {
-            self.stats.generates += 1;
-        }
-
         for m in moves(board, piece).iter() {
             let mut next = board;
             next |= m.mask();
@@ -287,10 +272,6 @@ impl Solver {
                 continue;
             }
             if self.seen(child.0 | ctx.stamp) {
-                #[cfg(feature = "stats")]
-                {
-                    self.stats.cache_hits += 1;
-                }
                 continue;
             }
             if self.search(ctx, &child) {

@@ -9,9 +9,8 @@ use itertools::Itertools;
 use jade_core::board::Board;
 use jade_pattern::Pattern;
 use jade_solve::parse::Saves;
+use jade_solve::percent::percent;
 use jade_solve::solve;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 #[derive(clap::Parser)]
 pub struct Program {
     #[clap(subcommand)]
@@ -164,17 +163,9 @@ pub fn main() {
             hold,
         } => {
             let board = parse_board(field.as_deref());
-            let total = pattern.expand().len();
-
             let queues = pattern.expand();
-
-            let success = queues
-                .into_par_iter()
-                .map(|queue| solve::reachable(board, &queue, two_l, save, *hold))
-                .filter(|x| *x)
-                .count();
-
-            println!("{success}/{total}");
+            let (n, d) = percent(board, queues, two_l, save, *hold);
+            println!("{n}/{d}");
         }
     }
 }

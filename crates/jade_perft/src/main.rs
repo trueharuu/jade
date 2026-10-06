@@ -1,9 +1,8 @@
 use std::time::Instant;
 
 use clap::Parser;
-use itertools::Itertools;
 use jade_core::board::Board;
-use jade_core::piece::Piece;
+use jade_core::queue::Queue;
 use jade_pattern::Pattern;
 use rayon::ThreadPoolBuilder;
 
@@ -66,24 +65,26 @@ fn main() {
 
     pool.install(|| {
         for queue in &queues {
-            let depth = match depth_for(queue, program.depth) {
+            let mut queue = *queue;
+            let depth = match depth_for(&queue, program.depth) {
                 Ok(depth) => depth,
                 Err(msg) => {
                     eprintln!("{msg}");
                     std::process::exit(1);
                 }
             };
+            queue.truncate(depth);
             if program.compare {
-                report_compare(board, &queue[..depth], program.threads);
+                report_compare(board, &queue, program.threads);
             } else {
-                report(program.model, board, &queue[..depth], program.threads);
+                report(program.model, board, &queue, program.threads);
             }
         }
     });
 }
 
-fn report_compare(board: Board, queue: &[Piece], threads: usize) {
-    let name = queue.iter().map(ToString::to_string).join("");
+fn report_compare(board: Board, queue: &Queue, threads: usize) {
+    let name = queue.to_string();
 
     let oracle_n = perft::run(Model::Oracle, board, queue, threads);
     let fast_n = perft::run(Model::Fast, board, queue, threads);
@@ -98,8 +99,8 @@ fn report_compare(board: Board, queue: &[Piece], threads: usize) {
     println!("perft({name}) = {diff_str} ({oracle_n} -> {fast_n})");
 }
 
-fn report(model: Model, board: Board, queue: &[Piece], threads: usize) {
-    let name = queue.iter().map(ToString::to_string).join("");
+fn report(model: Model, board: Board, queue: &Queue, threads: usize) {
+    let name = queue.to_string();
 
     let t0 = Instant::now();
     let n = perft::run(model, board, queue, threads);
@@ -116,7 +117,7 @@ fn report(model: Model, board: Board, queue: &[Piece], threads: usize) {
 
 /// The perft depth for one queue expansion: the queue length, or the
 /// `--depth` prefix when given.
-fn depth_for(queue: &[Piece], depth: Option<usize>) -> Result<usize, String> {
+fn depth_for(queue: &Queue, depth: Option<usize>) -> Result<usize, String> {
     match depth {
         Some(d) if d > queue.len() => Err(format!(
             "error: depth {d} exceeds queue length {}",

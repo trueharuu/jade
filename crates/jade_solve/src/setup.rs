@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use jade_core::board::Board;
-use jade_core::piece::Piece;
+use jade_core::queue::Queue;
 use jade_pattern::Pattern;
 use jade_pattern::PatternError;
 
@@ -33,6 +33,6 @@ impl FromStr for DisjointPattern {
 /// Generates all PC-feasible `n`-piece setups for a given pattern, along with the set of pieces that it used.
 /// 
 /// For `DisjointPattern::Mixed`, no rules apply, but for `DisjointPattern::Disjoint`, the left-hand pattern must use all of its pieces within the setup.
-pub fn setups(pattern: DisjointPattern) -> Vec<(Board, Vec<Piece>)> {
+pub fn setups(pattern: DisjointPattern) -> Vec<(Board, Queue)> {
     todo!()
 }

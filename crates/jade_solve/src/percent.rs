@@ -331,7 +331,7 @@ fn completes(board: Board, piece: Piece, goal: Board) -> bool {
 #[cfg(test)]
 pub(crate) fn assert_matches_solver(
     board: Board,
-    queues: &[Vec<Piece>],
+    queues: &[jade_core::queue::Queue],
     two_l: bool,
     saves: Saves,
     hold: bool,

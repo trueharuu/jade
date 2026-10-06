@@ -2,6 +2,7 @@ use rayon::prelude::*;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
+use jade_core::queue::Queue;
 
 use crate::model::Model;
 use crate::model::moves;
@@ -20,7 +21,7 @@ pub fn child(board: Board, m: jade_core::placement::Move) -> Board {
 /// across the current rayon pool.
 #[inline]
 #[must_use]
-pub fn run(model: Model, board: Board, queue: &[Piece], threads: usize) -> u64 {
+pub fn run(model: Model, board: Board, queue: &Queue, threads: usize) -> u64 {
     if threads > 1 && queue.len() > 2 {
         run_parallel(model, board, queue)
     } else {
@@ -55,7 +56,8 @@ fn subtree(model: Model, board: Board, queue: &[Piece]) -> u64 {
 /// counted inline; second-ply nodes and their descendants are counted by
 /// the parallel walk over the units.
 #[inline]
-fn run_parallel(model: Model, board: Board, queue: &[Piece]) -> u64 {
+fn run_parallel(model: Model, board: Board, queue: &Queue) -> u64 {
+    let queue = queue.as_slice();
     let ml0 = moves(model, queue[0], board);
 
     let mut units = Vec::new();

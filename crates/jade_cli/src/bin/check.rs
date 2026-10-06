@@ -19,14 +19,13 @@ use std::str::FromStr;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
+use jade_core::queue::CAP;
+use jade_core::queue::Queue;
 use jade_pattern::Pattern;
 use jade_solve::Saves;
 use jade_solve::parse_fumen;
 use jade_solve::percent::percent;
 use jade_solve::solve::reachable;
-
-/// `Solver::reachable` asserts the queue fits its packed depth field.
-const MAX_QUEUE: usize = 11;
 
 const DIM: &str = "\x1b[2m";
 const RESET: &str = "\x1b[0m";
@@ -261,7 +260,7 @@ fn parse_fraction(fraction: &str) -> (usize, usize) {
 /// One queue line of the fixture. The queue is kept parsed so that a bad line
 /// is reported at the point it is checked, with its line number.
 struct Row {
-    queue: Result<Vec<Piece>, String>,
+    queue: Result<Queue, String>,
     recorded: bool,
 }
 
@@ -311,13 +310,13 @@ fn read_rows<I: Iterator<Item = std::io::Result<String>>>(lines: I) -> Vec<Row> 
 }
 
 /// Parses a queue string such as `TIJL` into pieces.
-fn parse_queue(src: &str) -> Result<Vec<Piece>, String> {
+fn parse_queue(src: &str) -> Result<Queue, String> {
     let src = src.trim();
     // The check is on bytes because `Piece::from_str` only accepts ASCII, and
     // a non-ASCII character would otherwise be reported as a bad piece.
-    if src.len() > MAX_QUEUE {
+    if src.len() > CAP {
         return Err(format!(
-            "queue {src} has {} bytes, the solver allows {MAX_QUEUE} pieces",
+            "queue {src} has {} bytes, a queue holds {CAP} pieces",
             src.len()
         ));
     }
@@ -355,7 +354,10 @@ mod tests {
     fn queue_line() {
         let row = Row::parse("TIJL,true");
         assert_eq!(row.recorded, true);
-        assert_eq!(row.queue.unwrap(), [Piece::T, Piece::I, Piece::J, Piece::L]);
+        assert_eq!(
+            row.queue.unwrap().as_slice(),
+            &[Piece::T, Piece::I, Piece::J, Piece::L][..]
+        );
     }
 
     #[test]
@@ -372,9 +374,9 @@ mod tests {
 
     #[test]
     fn queue_line_too_long_is_rejected_before_the_solver_panics() {
-        // `reachable` asserts `queue.len() <= MAX_QUEUE`, so this must be
-        // caught here rather than by a panic.
-        let long = "T".repeat(MAX_QUEUE + 1);
+        // `reachable` asserts the queue fits its packed depth field, so this
+        // must be caught here rather than by a panic.
+        let long = "T".repeat(CAP + 1);
         let row = Row::parse(&format!("{long},true"));
         assert!(row.queue.is_err());
     }

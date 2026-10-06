@@ -69,7 +69,7 @@ fn fast_moves(piece: Piece, board: Board) -> Moves {
 /// construct fixed queues; the binary takes queue patterns instead.
 #[cfg(test)]
 #[must_use]
-pub fn parse_queue(src: &str) -> Vec<Piece> {
+pub fn parse_queue(src: &str) -> jade_core::queue::Queue {
     src.chars()
         .map(|c| match c {
             'T' => Piece::T,

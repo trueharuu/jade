@@ -145,7 +145,7 @@ pub fn main() {
 
                 println!(
                     "{}",
-                    expanded.iter().map(|x| x.iter().join("")).join(&separator)
+                    expanded.iter().map(ToString::to_string).join(&separator)
                 );
             }
 

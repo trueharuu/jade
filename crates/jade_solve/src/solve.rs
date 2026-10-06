@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
+use jade_core::queue::CAP;
 
 use crate::rules::completes_goal;
 use crate::rules::outside_playfield;
@@ -16,8 +17,6 @@ const CACHE_LEN: usize = 1 << CACHE_BITS;
 /// A `Node` uses 48 bits. The upper 16 bits of a cache word hold the generation.
 const KEY_MASK: u64 = (1 << 48) - 1;
 const HASH_MUL: u64 = 0x9E37_79B9_7F4A_7C15;
-/// `Node` stores the depth in 4 bits.
-const MAX_QUEUE: usize = 11;
 
 // These keep the paths that existed before the module split working for
 // callers outside the crate.
@@ -97,7 +96,7 @@ impl Solver {
         saves: Saves,
         hold: bool,
     ) -> bool {
-        assert!(queue.len() <= MAX_QUEUE);
+        assert!(queue.len() <= CAP);
         // A full row above an empty cell is not a state the search can reach.
         // The caller must pass a board that `clearshift` does not change.
         debug_assert!(board.clearshift() == board, "root board is not clearshifted");
@@ -269,7 +268,7 @@ thread_local! {
 /// `two_l` is true.
 ///
 /// Returns `false` if the cell count of `board` is not a multiple of 4.
-/// Panics if `queue.len() > MAX_QUEUE`.
+/// Panics if `queue` is longer than [`CAP`].
 ///
 /// This uses a thread-local [`Solver`]. Own a `Solver` to avoid the lookup.
 #[must_use]

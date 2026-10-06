@@ -1,5 +1,7 @@
 use itertools::Itertools;
 use jade_core::piece::Piece;
+use jade_core::queue::CAP;
+use jade_core::queue::Queue;
 use std::collections::BTreeSet;
 use std::fmt::Display;
 
@@ -62,7 +64,7 @@ impl std::fmt::Display for PatternError {
 
 impl Pattern {
     #[must_use]
-    pub fn expand(&self) -> BTreeSet<Vec<Piece>> {
+    pub fn expand(&self) -> BTreeSet<Queue> {
         let mut result = BTreeSet::new();
 
         for segment in &self.0 {
@@ -114,20 +116,20 @@ impl std::str::FromStr for Pattern {
 
 impl Segment {
     #[must_use]
-    pub fn expand(&self) -> Vec<Vec<Piece>> {
+    pub fn expand(&self) -> Vec<Queue> {
         match self {
-            Self::Single(piece) => vec![vec![*piece]],
+            Self::Single(piece) => vec![Queue::from_slice(&[*piece])],
 
             // AB is a product of A and B, [TI][JL] should produce TJ;TL;IJ;IL
             Self::Sequence(segments) => {
-                let mut result = vec![vec![]];
+                let mut result = vec![Queue::new()];
                 for segment in segments {
                     let expanded = segment.expand();
                     let mut new_result = Vec::new();
-                    for prefix in result {
+                    for prefix in &result {
                         for suffix in &expanded {
-                            let mut combined = prefix.clone();
-                            combined.extend(suffix.clone());
+                            let mut combined = *prefix;
+                            combined.extend(*suffix);
                             new_result.push(combined);
                         }
                     }
@@ -145,17 +147,7 @@ impl Segment {
                 result
             }
 
-            Self::Wildcard => {
-                vec![
-                    vec![Piece::T],
-                    vec![Piece::I],
-                    vec![Piece::J],
-                    vec![Piece::L],
-                    vec![Piece::O],
-                    vec![Piece::S],
-                    vec![Piece::Z],
-                ]
-            }
+            Self::Wildcard => Piece::ALL.iter().copied().map(one).collect(),
 
             Self::Except(inner) => {
                 let mut excluded = Vec::new();
@@ -164,19 +156,10 @@ impl Segment {
                         excluded.extend(exp);
                     }
                 }
-                let all_pieces = vec![
-                    Piece::T,
-                    Piece::I,
-                    Piece::J,
-                    Piece::L,
-                    Piece::O,
-                    Piece::S,
-                    Piece::Z,
-                ];
                 let mut result = Vec::new();
-                for piece in all_pieces {
+                for piece in Piece::ALL {
                     if !excluded.contains(&piece) {
-                        result.push(vec![piece]);
+                        result.push(one(piece));
                     }
                 }
                 result
@@ -186,7 +169,7 @@ impl Segment {
                 .expand()
                 .into_iter()
                 .permutations(*n)
-                .map(|perm| perm.into_iter().flatten().collect())
+                .map(|perm| Queue::from_iter(perm.into_iter().flatten()))
                 .unique()
                 .collect(),
 
@@ -194,7 +177,7 @@ impl Segment {
                 .expand()
                 .into_iter()
                 .combinations(*n)
-                .map(|comb| comb.into_iter().flatten().collect())
+                .map(|comb| Queue::from_iter(comb.into_iter().flatten()))
                 .unique()
                 .collect(),
 
@@ -204,19 +187,19 @@ impl Segment {
                     elements.extend(exp);
                 }
                 let len = elements.len();
-                elements.into_iter().permutations(len).unique().collect()
+                elements
+                    .into_iter()
+                    .permutations(len)
+                    .map(Queue::from_iter)
+                    .unique()
+                    .collect()
             }
 
-            Self::Filter(a, c) => {
-                let expanded = a.expand();
-                let mut result = Vec::new();
-                for exp in expanded {
-                    if c.evaluate(&exp) {
-                        result.push(exp);
-                    }
-                }
-                result
-            }
+            Self::Filter(a, c) => a
+                .expand()
+                .into_iter()
+                .filter(|exp| c.evaluate(exp))
+                .collect(),
         }
     }
 
@@ -292,7 +275,7 @@ fn matches_at(pattern: &Pattern, pieces: &[Piece], start: usize) -> Option<usize
         if len == 0 || start + len > pieces.len() {
             continue;
         }
-        if pieces[start..start + len] == expansion
+        if &pieces[start..start + len] == expansion.as_slice()
             && longest.is_none_or(|best: usize| len > best - start)
         {
             longest = Some(start + len);
@@ -311,7 +294,7 @@ fn occurrences(pattern: &Pattern, pieces: &[Piece]) -> Vec<(usize, usize)> {
             continue;
         }
         for start in 0..=(pieces.len() - len) {
-            if pieces[start..start + len] == expansion {
+            if &pieces[start..start + len] == expansion.as_slice() {
                 result.push((start, start + len));
             }
         }
@@ -353,6 +336,44 @@ pub const fn compare_count(count: usize, n: usize, comparator: Comparator) -> bo
 struct Parser {
     chars: Vec<char>,
     pos: usize,
+}
+
+/// Returns the queue holding the single piece `piece`.
+const fn one(piece: Piece) -> Queue {
+    Queue::from_slice(&[piece])
+}
+
+/// The length of the longest expansion of `segment`.
+///
+/// A queue holds at most [`CAP`] pieces, so a segment with a longer expansion
+/// cannot be built. The sum for a sequence saturates, so a long source cannot
+/// overflow.
+fn max_len(segment: &Segment) -> usize {
+    match segment {
+        // Each item of an `Except` excludes pieces, so every expansion of it
+        // holds one piece.
+        Segment::Single(_) | Segment::Wildcard | Segment::Except(_) => 1,
+        Segment::Group(inner) | Segment::Filter(inner, _) | Segment::All(inner) => max_len(inner),
+        Segment::Sequence(segments) => segments
+            .iter()
+            .map(max_len)
+            .fold(0, usize::saturating_add),
+        Segment::Bag(items) => items.iter().map(max_len).max().unwrap_or(0),
+        Segment::Permute(inner, n) => max_len(inner).min(*n),
+        Segment::Choose(inner, n) => largest_sum(inner, *n),
+    }
+}
+
+/// The sum of the `n` longest expansions of `segment`, or of every expansion
+/// when `segment` has fewer than `n`.
+///
+/// `Choose` concatenates `n` expansions, so its longest result takes the `n`
+/// longest ones. Their lengths are only known by expanding. That expansion is
+/// no larger than the one the caller asks for later.
+fn largest_sum(segment: &Segment, n: usize) -> usize {
+    let mut lengths: Vec<usize> = segment.expand().iter().map(Queue::len).collect();
+    lengths.sort_unstable_by(|a, b| b.cmp(a));
+    lengths.iter().take(n).sum()
 }
 
 fn seq_segment(terms: Vec<Segment>) -> Segment {
@@ -451,6 +472,15 @@ impl Parser {
                 continue;
             }
             break;
+        }
+
+        // The top-level segments are alternatives, so the longest queue is the
+        // longest of them, not their sum.
+        let longest = segments.iter().map(max_len).max().unwrap_or(0);
+        if longest > CAP {
+            return Err(PatternError::InvalidPattern(format!(
+                "pattern expands to a queue of {longest} pieces, a queue holds {CAP}"
+            )));
         }
         Ok(Pattern(segments))
     }

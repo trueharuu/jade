@@ -410,3 +410,42 @@ before and after the change.
 
 Steps 1 and 2 do not depend on each other, and neither depends on any later
 step. They can be done in parallel.
+
+## Deviations
+
+The implementation differs from the design above in these points.
+
+**`Debug` is written by hand.** A derive reads the whole array, so it would print
+the unused tail. The implementation prints the live prefix as a list.
+
+**`Queue` gained two iterators and a `truncate`.** `Permute`, `Choose`, and
+`All` consume owned sequences from `itertools`, so `IntoIterator for Queue` was
+needed. It yields only the live prefix, through a named `IntoIter`. `truncate`
+gives the perft binary the `--depth` cut, which `Deref` cannot give.
+
+**The `Choose` bound is the sum of the `n` largest expansion lengths.** The
+table says `min(inner, n)`, which is wrong when the inner expression expands to
+sequences of different lengths. `[T,TTT]c2` gives one expansion of four pieces,
+not two. The exact bound needs the expansion lengths, so the check expands the
+inner segment once.
+
+**The top-level check takes the largest segment, not their sum.** The segments
+of a `Pattern` are alternatives joined by `;`, so the longest queue is the
+longest of them. A sum would reject `TTTTTTTTTTT;TT`.
+
+**Four functions keep `&[Piece]`.** `matches_at`, `occurrences`,
+`count_occurrences`, and `Condition::evaluate` take slices. A `Queue` derefs to
+a slice, so changing them would add no capability.
+
+**`percent` keeps its body.** Its bound is `Q: AsRef<[Piece]>` and `Queue`
+satisfies it, so only `assert_matches_solver` changed.
+
+**`subtree` and `run_parallel` keep `&[Piece]`.** They walk a tail of the queue,
+which is a slice. `perft::run` takes the `&Queue`.
+
+**Two signatures name `jade_core::queue::Queue` in full.** `model::parse_queue`
+and `percent::assert_matches_solver` are both `#[cfg(test)]`, so a top-level
+import would be unused in a normal build.
+
+**No tests were added.** The queue tests and the `max_len` tests in the Testing
+section were not written.

@@ -5,6 +5,7 @@ pub mod percent;
 pub mod rules;
 pub mod saves;
 pub mod solve;
+pub mod setup;
 
 pub use fumen::parse_fumen;
 pub use saves::Saves;

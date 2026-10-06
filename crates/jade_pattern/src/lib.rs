@@ -7,6 +7,8 @@ use std::fmt::Display;
 #[derive(Clone, PartialEq, Debug)]
 pub struct Pattern(pub Vec<Segment>);
 
+
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Segment {
     Single(Piece),                // X

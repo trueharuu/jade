@@ -8,6 +8,7 @@ use jade_core::board::Board;
 use jade_pattern::Pattern;
 use jade_solve::percent::percent;
 use jade_solve::saves::Saves;
+use jade_solve::setup::DisjointPattern;
 use jade_solve::solve;
 #[derive(clap::Parser)]
 pub struct Program {
@@ -55,6 +56,31 @@ pub enum Command {
         /// field.
         #[arg(long = "2l")]
         two_l: bool,
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
+
+        /// Whether to support hold.
+        #[arg(long, default_value_t = Hold(true))]
+        hold: Hold,
+    },
+
+    /// Finds all setups of `n` pieces that have some probability (or higher) of
+    /// performing a perfect clear with the remaining pieces.
+    Setup {
+        #[arg(short, long)]
+        pattern: DisjointPattern,
+
+        /// The amount of pieces to place from `pattern` for the setup.
+        #[arg(short, long)]
+        n: usize,
+
+        /// The minimum probability of a perfect clear for a setup to be
+        /// reported.
+        #[arg(short, long)]
+        cutoff: f64,
+
         /// Require the hold to hold a piece of this pattern when the field
         /// fills. Every expansion must be a single piece.
         #[arg(short, long, default_value_t = Saves::empty())]
@@ -164,6 +190,17 @@ pub fn main() {
             let queues = pattern.expand();
             let (n, d) = percent(board, queues, two_l, save, *hold);
             println!("{n}/{d}");
+        }
+
+        Command::Setup {
+            pattern,
+            n,
+            cutoff,
+            hold,
+            save,
+        } => {
+            let _ = (pattern, n, cutoff, hold, save);
+            todo!();
         }
     }
 }

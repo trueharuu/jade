@@ -209,6 +209,7 @@ dependencies = [
  "fumen",
  "jade_core",
  "jade_nav",
+ "jade_pattern",
  "rayon",
  "rustc-hash",
 ]

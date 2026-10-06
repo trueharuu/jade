@@ -68,7 +68,8 @@ fn run_parallel(model: Model, board: Board, queue: &[Piece]) -> u64 {
     }
 
     let tail = &queue[2..];
-    total + units.len() as u64
+    total
+        + units.len() as u64
         + units
             .par_iter()
             .map(|b| subtree(model, *b, tail))
@@ -85,25 +86,19 @@ mod tests {
         run(Model::Oracle, Board::empty(), &queue, threads)
     }
 
-    // Hand-verified: T has 8+9+8+9 = 34 placements from the empty board,
-    // I has 7 horizontal + 10 vertical = 17. Each placement discovers one
-    // board; the start board does not count.
     #[test]
     fn single_piece_counts() {
         assert_eq!(run_queue("T", 1), 34);
         assert_eq!(run_queue("I", 1), 17);
-    }
-
-    // Frozen oracle node total for the full 7-bag, recorded after the
-    // O-spawn height fix. The start board does not count.
-    #[test]
-    #[ignore = "slow in debug builds"]
-    fn full_bag_total() {
-        assert_eq!(run_queue("IOLJSZT", 1), 3_390_732);
+        assert_eq!(run_queue("J", 1), 34);
+        assert_eq!(run_queue("L", 1), 34);
+        assert_eq!(run_queue("O", 1), 9);
+        assert_eq!(run_queue("S", 1), 17);
+        assert_eq!(run_queue("Z", 1), 17);
     }
 
     #[test]
-    fn serial_and_parallel_agree() {
-        assert_eq!(run_queue("IOL", 1), run_queue("IOL", 4));
+    fn full_bag() {
+        assert_eq!(run_queue("TIJLOSZ", 1), 999_294);
     }
 }

@@ -6,8 +6,8 @@ use clap::Parser;
 use itertools::Itertools;
 use jade_core::board::Board;
 use jade_pattern::Pattern;
-use jade_solve::saves::Saves;
 use jade_solve::percent::percent;
+use jade_solve::saves::Saves;
 use jade_solve::solve;
 #[derive(clap::Parser)]
 pub struct Program {

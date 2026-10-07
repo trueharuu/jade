@@ -1,3 +1,5 @@
+pub mod disjoint;
+
 use itertools::Itertools;
 use jade_core::piece::Piece;
 use jade_core::queue::CAP;

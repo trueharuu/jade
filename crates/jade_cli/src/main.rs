@@ -5,10 +5,12 @@ use std::str::FromStr;
 use clap::Parser;
 use itertools::Itertools;
 use jade_core::board::Board;
+use jade_core::render;
 use jade_pattern::Pattern;
+use jade_pattern::disjoint::DisjointPattern;
 use jade_solve::percent::percent;
 use jade_solve::saves::Saves;
-use jade_solve::setup::DisjointPattern;
+use jade_solve::setup::setups;
 use jade_solve::solve;
 #[derive(clap::Parser)]
 pub struct Program {
@@ -78,7 +80,7 @@ pub enum Command {
 
         /// The minimum probability of a perfect clear for a setup to be
         /// reported.
-        #[arg(short, long)]
+        #[arg(short, long, default_value_t = 1.0)]
         cutoff: f64,
 
         /// Require the hold to hold a piece of this pattern when the field
@@ -199,8 +201,21 @@ pub fn main() {
             hold,
             save,
         } => {
-            let _ = (pattern, n, cutoff, hold, save);
-            todo!();
+            let ss = setups(pattern, n, *hold);
+            let mut map = std::collections::BTreeMap::new();
+            let mut total = 0;
+            for (_, p) in ss {
+                // increase count of `p` in map
+                *map.entry(p).or_insert(0) += 1;
+                total += 1;
+            }
+
+            for (p, count) in map {
+                println!("{p} {count}");
+            }
+
+            println!("{total}");
+
         }
     }
 }

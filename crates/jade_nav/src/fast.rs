@@ -54,7 +54,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 
         if !matches!(P, Piece::O) {
             unroll!(r, ss, {
-                kick_seq::<P>(&mut search, &fit, r);
+                kick_seq::<P, { r }>(&mut search, &fit);
             });
         }
 
@@ -105,27 +105,29 @@ fn closure(search: &mut [Board; Rotation::NB], fit: &[Board; Rotation::NB], r: u
     }
 }
 
-/// Adds the first-valid kick targets of rotation `r` to each other raw
+/// Adds the first-valid kick targets of raw rotation `R` to each other raw
 /// rotation plane.
 ///
 /// An SRS rotation applies its kicks in order, and only the first kick
 /// whose target fits takes effect. A kick therefore processes only the
 /// sources that earlier kicks in the same lane missed.
+///
+/// `R` is a const parameter, and the loop over target rotations is unrolled.
+/// The kick offsets are then compile-time constants, so every shift has a
+/// constant column mask.
 #[inline]
-fn kick_seq<const P: Piece>(
+fn kick_seq<const P: Piece, const R: usize>(
     search: &mut [Board; Rotation::NB],
     fit: &[Board; Rotation::NB],
-    r: usize,
 ) {
     let kt = match P {
         Piece::I => &KICKS_I,
         _ => &KICKS_TJLSZ,
     };
 
-    let mut t = 0;
-    while t < Rotation::NB {
-        let lane = kt[r][t];
-        let mut temp = search[r];
+    unroll!(t, Rotation::NB, {
+        let lane = kt[R][t];
+        let mut temp = search[R];
 
         let mut n = 0;
         while n < lane.1 {
@@ -141,7 +143,5 @@ fn kick_seq<const P: Piece>(
 
             n += 1;
         }
-
-        t += 1;
-    }
+    });
 }

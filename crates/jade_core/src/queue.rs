@@ -5,6 +5,8 @@ use std::ops::Deref;
 use crate::piece::Piece;
 
 /// A fixed-order queue of pieces with an absolute cap at [`CAP`] pieces.
+/// 
+/// When needed, a queue can be interpreted as a multiset of pieces.
 ///
 /// The pieces are stored inline, so a queue costs one copy and no allocation.
 /// A [`Queue`] is `Copy`, so it needs no `Drop` and passes through `&[Piece]`
@@ -41,7 +43,7 @@ impl Queue {
         let mut queue = Self::new();
         let mut i = 0;
         while i < src.len() {
-            queue.push_back(src[i]);
+            queue.push(src[i]);
             i += 1;
         }
         queue
@@ -53,7 +55,7 @@ impl Queue {
     ///
     /// Panics if the queue already holds [`CAP`] pieces.
     #[inline]
-    pub const fn push_back(&mut self, piece: Piece) {
+    pub const fn push(&mut self, piece: Piece) {
         assert!(self.len as usize != CAP, "queue full");
         self.pieces[self.len as usize] = piece;
         self.len += 1;
@@ -122,6 +124,43 @@ impl Queue {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    /// Returns whether the piece `p` is present.
+    #[inline]
+    #[must_use]
+    pub const fn contains(&self, p: Piece) -> bool {
+        let mut i = 0;
+        while i < self.len as usize {
+            if self.pieces[i] as u8 == p as u8 {
+                return true;
+            }
+            i += 1;
+        }
+
+        false
+    }
+
+    /// Consumes `slice` from the queue, removing the elements from left-to-right.
+    pub const fn consume(&mut self, slice: &[Piece]) {
+        let mut i = 0;
+        while i < slice.len() {
+            let mut j = 0;
+            while j < self.len as usize {
+                if self.pieces[j] as u8 == slice[i] as u8 {
+                    // Remove the piece by shifting the tail left.
+                    let mut k = j + 1;
+                    while k < self.len as usize {
+                        self.pieces[k - 1] = self.pieces[k];
+                        k += 1;
+                    }
+                    self.len -= 1;
+                    break;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
     }
 }
 
@@ -217,7 +256,7 @@ impl Extend<Piece> for Queue {
     #[inline]
     fn extend<I: IntoIterator<Item = Piece>>(&mut self, iter: I) {
         for piece in iter {
-            self.push_back(piece);
+            self.push(piece);
         }
     }
 }
@@ -270,5 +309,14 @@ impl fmt::Display for Queue {
 impl fmt::Debug for Queue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl<'a> Extend<&'a Piece> for Queue {
+    #[inline]
+    fn extend<I: IntoIterator<Item = &'a Piece>>(&mut self, iter: I) {
+        for &piece in iter {
+            self.push(piece);
+        }
     }
 }

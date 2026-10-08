@@ -1,6 +1,6 @@
 use jade_core::board::Board;
 use jade_core::piece::Piece;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 
 use crate::Saves;
 use crate::moves::moves;
@@ -73,7 +73,7 @@ where
     if targets.is_empty() {
         return (0, total);
     }
-    keys.par_sort_unstable();
+    keys.sort_unstable();
     let mut unique: Vec<((u64, u8), u64)> = Vec::new();
     for key in keys {
         match unique.last_mut() {
@@ -86,8 +86,8 @@ where
     for t in &mut targets {
         let (k, goal) = (t.k, t.goal);
         let mut needed: Vec<u64> = unique
-            .par_iter()
-            .flat_map_iter(|&((code, n), _)| {
+            .iter()
+            .flat_map(|&((code, n), _)| {
                 let mut buf = [Piece::T; 12];
                 let q = decode(code, n as usize, &mut buf);
                 let mut out = Vec::new();
@@ -100,7 +100,7 @@ where
                 out
             })
             .collect();
-        needed.par_sort_unstable();
+        needed.sort_unstable();
         needed.dedup();
         t.winners = solve_orders(board, goal, k, &needed);
     }
@@ -108,7 +108,7 @@ where
     // A queue succeeds if some schedule gives a winning order and a good
     // leftover.
     let successes: u64 = unique
-        .par_iter()
+        .iter()
         .map(|&((code, n), count)| {
             let mut buf = [Piece::T; 12];
             let q = decode(code, n as usize, &mut buf);
@@ -154,7 +154,26 @@ fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
         return f(code, hold.or(queue.get(d).copied()));
     }
     let Some(&active) = queue.get(d) else {
-        return false;
+        // The queue is empty. The held piece is not part of the queue, so it
+        // can still be placed. This must stay in step with `Solver::search`.
+        //
+        // The placement still adds a digit: `code` is the order of the placed
+        // pieces, and `expand` reads `k` digits from it. A hold entry spends an
+        // extra queue slot (option 3 below), so without this branch a solve that
+        // needs every queue piece could not use hold at all.
+        let Some(h) = hold else {
+            return false;
+        };
+        return walk(
+            queue,
+            k,
+            hold_on,
+            d,
+            None,
+            (code << 3) | h as u64,
+            placed + 1,
+            f,
+        );
     };
     if walk(
         queue,
@@ -299,7 +318,7 @@ fn expand(boards: &[u64], codes: &[u64], depth: usize, k: usize, goal: Board) ->
 
     if depth < PAR_DEPTH && groups.len() > 1 && codes.len() >= PAR_MIN_CODES {
         groups
-            .par_iter()
+            .iter()
             .map(run)
             .collect::<Vec<_>>()
             .into_iter()

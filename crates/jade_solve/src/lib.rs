@@ -6,6 +6,7 @@ pub mod rules;
 pub mod saves;
 pub mod solve;
 pub mod setup;
+pub mod evaluate;
 
 pub use fumen::parse_fumen;
 pub use saves::Saves;

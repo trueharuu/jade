@@ -155,7 +155,16 @@ impl Solver {
     fn search(&mut self, ctx: &Ctx, node: &Node) -> bool {
         let d = node.depth() as usize;
         let Some(&active) = ctx.queue.get(d) else {
-            return false;
+            // The queue is empty. The held piece is not part of the queue, so
+            // it can still be placed. A hold entry spends an extra queue slot
+            // (option 3 below), so without this branch a solve that needs every
+            // queue piece cannot use hold at all.
+            let Some(h) = node.hold() else {
+                return false;
+            };
+            let board = node.board();
+            let cells = board.0.count_ones();
+            return self.place(ctx, board, cells, h, None, d);
         };
         let board = node.board();
         let hold = node.hold();
@@ -210,7 +219,11 @@ impl Solver {
         let k = pieces_to_goal(cells, ctx.two_l);
         // With empty hold and a save set, one more piece must remain as leftover.
         let extra = usize::from(!ctx.saves.is_empty() && hold.is_none());
-        let can_continue = ctx.queue.len() - depth >= k + extra;
+        // The held piece is not part of the queue, so it is one more piece that
+        // can still be placed. Counting only queue slots here rejects solves
+        // that need every queue piece and use hold.
+        let in_hold = usize::from(hold.is_some());
+        let can_continue = ctx.queue.len() - depth + in_hold >= k + extra;
         if !can_continue && !goal20 {
             return false;
         }

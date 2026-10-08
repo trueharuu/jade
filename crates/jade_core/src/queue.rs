@@ -142,25 +142,27 @@ impl Queue {
     }
 
     /// Consumes `slice` from the queue, removing the elements from left-to-right.
-    pub const fn consume(&mut self, slice: &[Piece]) {
+    pub const fn consume(self, slice: &[Piece]) -> Self {
+        let mut queue = self;
         let mut i = 0;
         while i < slice.len() {
             let mut j = 0;
-            while j < self.len as usize {
-                if self.pieces[j] as u8 == slice[i] as u8 {
+            while j < queue.len as usize {
+                if queue.pieces[j] as u8 == slice[i] as u8 {
                     // Remove the piece by shifting the tail left.
                     let mut k = j + 1;
-                    while k < self.len as usize {
-                        self.pieces[k - 1] = self.pieces[k];
+                    while k < queue.len as usize {
+                        queue.pieces[k - 1] = queue.pieces[k];
                         k += 1;
                     }
-                    self.len -= 1;
+                    queue.len -= 1;
                     break;
                 }
                 j += 1;
             }
             i += 1;
         }
+        queue
     }
 }
 

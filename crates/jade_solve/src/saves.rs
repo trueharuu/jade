@@ -17,6 +17,13 @@ impl Saves {
         Saves(0)
     }
 
+    /// Returns a set that contains every piece type.
+    #[inline]
+    #[must_use]
+    pub const fn all() -> Self {
+        Saves((1 << Piece::ALL.len()) - 1)
+    }
+
     /// Returns the number of pieces in the set.
     #[inline]
     #[must_use]
@@ -36,6 +43,18 @@ impl Saves {
     #[must_use]
     pub const fn has(&self, piece: Piece) -> bool {
         self.0 & (1 << (piece as u8)) != 0
+    }
+
+    /// Adds `piece` to the set.
+    #[inline]
+    pub fn add(&mut self, piece: Piece) {
+        self.0 |= 1 << (piece as u8);
+    }
+
+    /// Removes `piece` from the set, if present.
+    #[inline]
+    pub fn remove(&mut self, piece: Piece) {
+        self.0 &= !(1 << (piece as u8));
     }
 }
 

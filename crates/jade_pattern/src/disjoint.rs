@@ -1,13 +1,26 @@
 use std::str::FromStr;
 
-use crate::{Pattern, PatternError};
-
+use crate::Pattern;
+use crate::PatternError;
+use crate::Segment;
 
 /// One of two kinds of setup patterns.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisjointPattern {
     Mixed(Pattern),
     Disjoint(Pattern, Pattern),
+}
+
+impl DisjointPattern {
+    pub fn join(&self) -> Pattern {
+        match self {
+            DisjointPattern::Mixed(p) => p.clone(),
+            // like idk
+            DisjointPattern::Disjoint(p1, p2) => format!("{},{}", p1.to_string(), p2.to_string())
+                .parse()
+                .unwrap(),
+        }
+    }
 }
 
 impl FromStr for DisjointPattern {

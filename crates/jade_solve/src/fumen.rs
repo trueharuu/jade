@@ -18,9 +18,10 @@ pub fn parse_fumen(s: &str) -> Result<Board, String> {
 
     for (y, row) in page.iter().enumerate().take(4) {
         for (x, _) in row.iter().enumerate().take(10) {
-            if row[x] == CellColor::Grey {
-                board.set(x as i32, y as i32);
+            if row[x] == CellColor::Empty {
+                continue;
             }
+            board.set(x as i32, y as i32);
         }
     }
 

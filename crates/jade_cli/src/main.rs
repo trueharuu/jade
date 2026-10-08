@@ -1,17 +1,23 @@
+use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
 use clap::Parser;
+
 use itertools::Itertools;
+
 use jade_core::board::Board;
-use jade_core::render;
+use jade_core::piece::Piece;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
+use jade_solve::evaluate::Evaluator;
+use jade_solve::fumen::encode_fumen;
 use jade_solve::percent::percent;
 use jade_solve::saves::Saves;
 use jade_solve::setup::setups;
 use jade_solve::solve;
+
 #[derive(clap::Parser)]
 pub struct Program {
     #[clap(subcommand)]
@@ -79,7 +85,8 @@ pub enum Command {
         n: usize,
 
         /// The minimum probability of a perfect clear for a setup to be
-        /// reported.
+        /// reported. If no cutoff is specified, the best setup is reported
+        /// instead.
         #[arg(short, long, default_value_t = 1.0)]
         cutoff: f64,
 
@@ -91,6 +98,20 @@ pub enum Command {
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
         hold: Hold,
+    },
+
+    Saves {
+        #[arg(short, long)]
+        pattern: Pattern,
+
+        /// Starting field for the solve, as a fumen. Defaults to an empty
+        /// field.
+        #[arg(short, long)]
+        field: Option<String>,
+
+        /// The save criteria to consider. Defaults to all pieces.
+        #[arg(short, long, default_value_t = Saves::all())]
+        save: Saves,
     },
 }
 
@@ -191,7 +212,9 @@ pub fn main() {
             let board = parse_board(field.as_deref());
             let queues = pattern.expand();
             let (n, d) = percent(board, queues, two_l, save, *hold);
-            println!("{n}/{d}");
+            let p = n as f64 / d as f64;
+            let mp = minimum_precision(d) - 2;
+            println!("{n}/{d} ({:.mp$}%)", p * 100.0);
         }
 
         Command::Setup {
@@ -201,21 +224,64 @@ pub fn main() {
             hold,
             save,
         } => {
-            let ss = setups(pattern, n, *hold);
-            let mut map = std::collections::BTreeMap::new();
-            let mut total = 0;
-            for (_, p) in ss {
-                // increase count of `p` in map
-                *map.entry(p).or_insert(0) += 1;
-                total += 1;
+            let ss = setups(pattern.clone(), n, *hold);
+
+            eprintln!(
+                "{} ({})",
+                ss.values().map(|x| x.len()).sum::<usize>(),
+                ss.keys().join(" ")
+            );
+
+            let pat = pattern.join().expand();
+
+            // A cutoff of 1.0 means "only setups that always clear", which is
+            // the threshold `percent` applied per board. Below 1.0 the setup
+            // just has to reach that rate.
+            let evaluator = Evaluator::new(Some(cutoff));
+
+            for (queue, boards) in ss {
+                // The remaining queues after the setup consumed its pieces.
+                // The dedup has to happen after `consume`: it is not
+                // injective, so distinct queues can consume to the same
+                // queue and `run_group` expects distinct solves.
+                let solves: Vec<Vec<Piece>> = pat
+                    .iter()
+                    .map(|x| x.consume(&queue))
+                    .collect::<BTreeSet<_>>()
+                    .iter()
+                    .map(|x| x.as_slice().to_vec())
+                    .collect();
+
+                let d = solves.len() as u64;
+
+                // The evaluator parallelises over the boards itself.
+                for (board, n) in evaluator.run_group(&solves, &boards, save, *hold) {
+                    let p = n as f64 / d as f64;
+                    let mp = minimum_precision(d);
+                    println!("{}\t{n}\t{d}\t{p:.mp$}\t{queue}", encode_fumen(&board));
+                }
             }
+        }
 
-            for (p, count) in map {
-                println!("{p} {count}");
+        Command::Saves {
+            pattern,
+            field,
+            save,
+        } => {
+            let board = parse_board(field.as_deref());
+
+            for piece in Piece::ALL {
+                if !save.has(piece) {
+                    continue;
+                }
+
+                // run percent with this specific piece as save
+                let queues = pattern.expand();
+                let mut save = Saves::empty();
+                save.add(piece);
+                let (n, d) = percent(board, queues, false, save, true);
+                println!("{piece}: {n}/{d}");
             }
-
-            println!("{total}");
-
         }
     }
 }
@@ -233,4 +299,10 @@ fn parse_board(field: Option<&str>) -> Board {
         },
         None => Board::empty(),
     }
+}
+
+/// Returns the minimum precision such that no two values with denominator
+/// `denom` map to the same value.
+fn minimum_precision(denom: u64) -> usize {
+    denom.ilog10() as usize + 1
 }

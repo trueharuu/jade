@@ -1,6 +1,7 @@
 use std::fmt;
 use std::hash::Hash;
 use std::ops::Deref;
+use std::str::FromStr;
 
 use crate::piece::Piece;
 
@@ -320,5 +321,19 @@ impl<'a> Extend<&'a Piece> for Queue {
         for &piece in iter {
             self.push(piece);
         }
+    }
+}
+
+impl FromStr for Queue {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut queue = Queue::new();
+        for c in s.chars() {
+            let piece =
+                Piece::from_str(&c.to_string()).map_err(|_| format!("invalid piece: {c}"))?;
+            queue.push(piece);
+        }
+        Ok(queue)
     }
 }

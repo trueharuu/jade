@@ -280,7 +280,9 @@ pub fn main() {
                 let mut save = Saves::empty();
                 save.add(piece);
                 let (n, d) = percent(board, queues, false, save, true);
-                println!("{piece}: {n}/{d}");
+                let p = n as f64 / d as f64;
+                let mp = minimum_precision(d) - 2;
+                println!("{piece}: {n}/{d} ({:.mp$}%)", p * 100.0);
             }
         }
     }

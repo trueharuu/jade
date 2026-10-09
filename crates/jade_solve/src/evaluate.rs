@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
-use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -31,30 +31,62 @@ const EMPTY: u32 = u32::MAX;
 /// allows. Only queues that really failed are counted, so no setup that reaches
 /// the cutoff is lost.
 ///
-/// With no cutoff, the threshold is the best rate seen so far. Use [`keep`] on
-/// the results at the end, because the best rate can grow during the run.
+/// With no cutoff, the threshold is the rate of the `limit`th best setup seen
+/// so far. Use [`keep`] on the results at the end, because that rate can grow
+/// during the run.
 ///
 /// [`keep`]: Evaluator::keep
 pub struct Evaluator {
     cutoff: Option<f64>,
-    /// Best rate seen so far, as `f64` bits. Non-negative floats order like
-    /// their bits, so `fetch_max` works.
-    best: AtomicU64,
+    /// The best rates seen so far, sorted from best to worst. The vector holds
+    /// at most `limit` entries. With no cutoff it is the only shared state, so
+    /// it needs a lock.
+    top: Mutex<Vec<f64>>,
+    /// How many rates `top` keeps. A limit of 1 means "the best rate only".
+    limit: usize,
 }
 
 impl Evaluator {
     pub fn new(cutoff: Option<f64>) -> Self {
+        Self::with_limit(cutoff, 1)
+    }
+
+    /// Makes an evaluator that keeps the `limit` best rates when there is no
+    /// cutoff. The limit has no effect on a cutoff run.
+    pub fn with_limit(cutoff: Option<f64>, limit: usize) -> Self {
         Self {
             cutoff,
-            best: AtomicU64::new(0f64.to_bits()),
+            top: Mutex::new(Vec::new()),
+            limit: limit.max(1),
         }
+    }
+
+    /// The rate that a setup must reach to be reported, or `None` for a cutoff
+    /// run. A run with fewer than `limit` results has no threshold yet.
+    fn threshold(&self) -> Option<f64> {
+        if self.cutoff.is_some() {
+            return None;
+        }
+        let top = self.top.lock().unwrap();
+        (top.len() == self.limit).then(|| top[top.len() - 1])
+    }
+
+    /// Records a rate, keeping the best `limit` of them.
+    fn record(&self, rate: f64) {
+        let mut top = self.top.lock().unwrap();
+        top.push(rate);
+        // Most insertions are worse than the last entry and go straight back
+        // out, so only the tail of the vector moves.
+        top.sort_unstable_by(|a, b| b.total_cmp(a));
+        top.truncate(self.limit);
     }
 
     /// The fewest successes out of `d` queues that the threshold allows.
     fn min_ok(&self, d: u64) -> u64 {
-        let rate = self
-            .cutoff
-            .unwrap_or_else(|| f64::from_bits(self.best.load(Relaxed)));
+        let rate = match self.cutoff {
+            Some(rate) => rate,
+            None => self.threshold().unwrap_or(0.0),
+        };
         let need = ((rate * d as f64) - 1e-9).ceil().max(0.0) as u64;
         if self.cutoff.is_none() {
             need.max(1)
@@ -65,11 +97,16 @@ impl Evaluator {
 
     /// Returns whether a setup with `ok` successes out of `d` queues should be
     /// reported. With a cutoff, this is the cutoff test. With no cutoff, only
-    /// the best rate (and ties) passes.
+    /// the best `limit` rates (and ties with the last of them) pass.
     pub fn keep(&self, ok: u64, d: u64) -> bool {
         match self.cutoff {
             Some(_) => ok >= self.min_ok(d),
-            None => ok as f64 / d as f64 + 1e-9 >= f64::from_bits(self.best.load(Relaxed)),
+            None => match self.threshold() {
+                // Fewer than `limit` results so far, so the best of them all
+                // pass.
+                None => ok > 0,
+                Some(rate) => ok as f64 / d as f64 + 1e-9 >= rate,
+            },
         }
     }
 
@@ -100,8 +137,7 @@ impl Evaluator {
             .filter_map(|&board| {
                 let ok = prep.run(board, self.min_ok(d))?;
                 if self.cutoff.is_none() {
-                    self.best
-                        .fetch_max((ok as f64 / d as f64).to_bits(), Relaxed);
+                    self.record(ok as f64 / d as f64);
                 }
                 Some((board, ok))
             })

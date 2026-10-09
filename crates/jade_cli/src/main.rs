@@ -9,6 +9,7 @@ use itertools::Itertools;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
+use jade_core::queue::Queue;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
 use jade_solve::evaluate::Evaluator;
@@ -87,8 +88,14 @@ pub enum Command {
         /// The minimum probability of a perfect clear for a setup to be
         /// reported. If no cutoff is specified, the best setup is reported
         /// instead.
-        #[arg(short, long, default_value_t = 1.0)]
-        cutoff: f64,
+        #[arg(short, long)]
+        cutoff: Option<f64>,
+
+        /// Report at most this many setups. Requires auto mode, so no
+        /// `--cutoff`. Rows of the same rate keep the order they were found
+        /// in.
+        #[arg(short, long)]
+        limit: Option<usize>,
 
         /// Require the hold to hold a piece of this pattern when the field
         /// fills. Every expansion must be a single piece.
@@ -221,9 +228,15 @@ pub fn main() {
             pattern,
             n,
             cutoff,
+            limit,
             hold,
             save,
         } => {
+            if limit.is_some() && cutoff.is_some() {
+                eprintln!("error: --limit cannot be used with --cutoff");
+                std::process::exit(2);
+            }
+
             let ss = setups(pattern.clone(), n, *hold);
 
             eprintln!(
@@ -236,8 +249,15 @@ pub fn main() {
 
             // A cutoff of 1.0 means "only setups that always clear", which is
             // the threshold `percent` applied per board. Below 1.0 the setup
-            // just has to reach that rate.
-            let evaluator = Evaluator::new(Some(cutoff));
+            // just has to reach that rate. With no cutoff, the evaluator
+            // tracks the best rate instead.
+            // Without a cutoff the evaluator keeps the best rates it has seen,
+            // so a limit tells it how many rates to hold.
+            let evaluator = Evaluator::with_limit(cutoff, limit.unwrap_or(1));
+
+            // Results are printed at the end. Without a cutoff the best rate
+            // can grow during the run, so `keep` decides what to report.
+            let mut results: Vec<(Queue, Board, u64, u64)> = Vec::new();
 
             for (queue, boards) in ss {
                 // The remaining queues after the setup consumed its pieces.
@@ -256,10 +276,23 @@ pub fn main() {
 
                 // The evaluator parallelises over the boards itself.
                 for (board, n) in evaluator.run_group(&solves, &boards, save, *hold) {
-                    let p = n as f64 / d as f64;
-                    let mp = minimum_precision(d);
-                    println!("{}\t{n}\t{d}\t{p:.mp$}\t{queue}", encode_fumen(&board));
+                    results.push((queue, board, n, d));
                 }
+            }
+
+            results.retain(|&(_, _, n, d)| evaluator.keep(n, d));
+
+            // The sort is stable, so rows of equal rate keep the order the
+            // search found them in.
+            results.sort_by(|a, b| rate(b.2, b.3).total_cmp(&rate(a.2, a.3)));
+            if let Some(limit) = limit {
+                results.truncate(limit);
+            }
+
+            for (queue, board, n, d) in &results {
+                let p = rate(*n, *d);
+                let mp = minimum_precision(*d);
+                println!("{}\t{n}\t{d}\t{p:.mp$}\t{queue}", encode_fumen(board));
             }
         }
 
@@ -301,6 +334,11 @@ fn parse_board(field: Option<&str>) -> Board {
         },
         None => Board::empty(),
     }
+}
+
+/// Returns the success rate of `n` solves out of `d`.
+fn rate(n: u64, d: u64) -> f64 {
+    n as f64 / d as f64
 }
 
 /// Returns the minimum precision such that no two values with denominator

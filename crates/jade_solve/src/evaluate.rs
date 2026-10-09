@@ -448,31 +448,3 @@ fn completes(board: Board, piece: Piece) -> bool {
     let need = Board(PC_4.0 & !board.0);
     moves(board, piece).iter().any(|m| m.mask() == need)
 }
-
-/// Test helper. Checks `Prepared::run` against `reachable` on every queue, for
-/// the exact count, for a threshold one above it, and with the hot slots set.
-#[cfg(test)]
-pub(crate) fn assert_matches_reachable(
-    board: Board,
-    solves: &[Vec<Piece>],
-    saves: Saves,
-    hold: bool,
-) {
-    let cells = board.0.count_ones();
-    let expected = solves
-        .iter()
-        .filter(|q| reachable(board, q, false, saves, hold))
-        .count() as u64;
-
-    let prep = Prepared::new(solves, cells, saves, hold);
-    assert_eq!(prep.run(board, 0), Some(expected));
-    assert_eq!(prep.run(board, expected), Some(expected));
-    assert_eq!(prep.run(board, expected + 1), None);
-
-    // The same results with every queue hot.
-    for u in 0..prep.keys.len().min(HOT) {
-        prep.add_hot(u as u32);
-    }
-    assert_eq!(prep.run(board, 0), Some(expected));
-    assert_eq!(prep.run(board, expected + 1), None);
-}

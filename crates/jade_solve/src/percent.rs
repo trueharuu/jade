@@ -344,22 +344,3 @@ fn completes(board: Board, piece: Piece, goal: Board) -> bool {
         })
     }
 }
-
-/// Differential test helper. Panics if `percent` and a loop of `reachable`
-/// disagree. Call it from your own tests with boards, queues, and saves.
-#[cfg(test)]
-pub(crate) fn assert_matches_solver(
-    board: Board,
-    queues: &[jade_core::queue::Queue],
-    two_l: bool,
-    saves: Saves,
-    hold: bool,
-) {
-    let expected = queues
-        .iter()
-        .filter(|q| crate::solve::reachable(board, q, two_l, saves, hold))
-        .count() as u64;
-    let (got, total) = percent(board, queues, two_l, saves, hold);
-    assert_eq!(total, queues.len() as u64);
-    assert_eq!(got, expected, "two_l={two_l} hold={hold}");
-}

@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use crate::Pattern;
 use crate::PatternError;
-use crate::Segment;
 
 /// One of two kinds of setup patterns.
 #[derive(Clone, Debug, PartialEq)]

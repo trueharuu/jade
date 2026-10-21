@@ -11,11 +11,12 @@ pub enum DisjointPattern {
 }
 
 impl DisjointPattern {
+    #[must_use]
     pub fn join(&self) -> Pattern {
         match self {
             DisjointPattern::Mixed(p) => p.clone(),
             // like idk
-            DisjointPattern::Disjoint(p1, p2) => format!("{},{}", p1.to_string(), p2.to_string())
+            DisjointPattern::Disjoint(p1, p2) => format!("{p1},{p2}")
                 .parse()
                 .unwrap(),
         }
@@ -33,9 +34,7 @@ impl FromStr for DisjointPattern {
                 Pattern::from_str(parts[0])?,
                 Pattern::from_str(parts[1])?,
             )),
-            _ => Err(PatternError::ParseError(format!(
-                "disjoint pattern has too many parts"
-            ))),
+            _ => Err(PatternError::ParseError("disjoint pattern has too many parts".to_string())),
         }
     }
 }

@@ -47,12 +47,14 @@ pub struct Evaluator {
 }
 
 impl Evaluator {
+    #[must_use]
     pub fn new(cutoff: Option<f64>) -> Self {
         Self::with_limit(cutoff, 1)
     }
 
     /// Makes an evaluator that keeps the `limit` best rates when there is no
     /// cutoff. The limit has no effect on a cutoff run.
+    #[must_use]
     pub fn with_limit(cutoff: Option<f64>, limit: usize) -> Self {
         Self {
             cutoff,

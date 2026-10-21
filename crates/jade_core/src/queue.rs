@@ -143,6 +143,7 @@ impl Queue {
     }
 
     /// Consumes `slice` from the queue, removing the elements from left-to-right.
+    #[must_use]
     pub const fn consume(self, slice: &[Piece]) -> Self {
         let mut queue = self;
         let mut i = 0;

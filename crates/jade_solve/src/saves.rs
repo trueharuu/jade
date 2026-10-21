@@ -47,13 +47,13 @@ impl Saves {
 
     /// Adds `piece` to the set.
     #[inline]
-    pub fn add(&mut self, piece: Piece) {
+    pub const fn add(&mut self, piece: Piece) {
         self.0 |= 1 << (piece as u8);
     }
 
     /// Removes `piece` from the set, if present.
     #[inline]
-    pub fn remove(&mut self, piece: Piece) {
+    pub const fn remove(&mut self, piece: Piece) {
         self.0 &= !(1 << (piece as u8));
     }
 }

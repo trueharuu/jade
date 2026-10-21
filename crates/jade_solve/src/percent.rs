@@ -37,7 +37,7 @@ where
 
     let cells = board.0.count_ones();
     let mut targets: Vec<Target> = Vec::with_capacity(2);
-    if cells % 4 == 0 {
+    if cells.is_multiple_of(4) {
         if cells <= 40 {
             targets.push(Target {
                 goal: PC_4,
@@ -225,7 +225,7 @@ pub(crate) fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
 }
 
 #[inline(always)]
-fn board_pruned(board: Board) -> bool {
+const fn board_pruned(board: Board) -> bool {
     board.has_imbalanced_split() || board.has_isolated_cell()
 }
 
@@ -255,7 +255,7 @@ pub(crate) fn children(boards: &[u64], piece: Piece) -> Vec<u64> {
     let mut next: Vec<u64> = Vec::new();
     for &b in boards {
         let b = Board(b);
-        for m in moves(b, piece).iter() {
+        for m in &moves(b, piece) {
             let mut n = b;
             n |= m.mask();
             n = n.clearshift();

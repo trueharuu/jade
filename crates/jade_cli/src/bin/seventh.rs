@@ -27,8 +27,8 @@ pub fn main() {
             .expand()
             .iter()
             .map(|q| {
-                let mut q = q.clone();
-                q = q.consume(&program.used.as_slice());
+                let mut q = *q;
+                q = q.consume(program.used.as_slice());
                 q.push(piece);
                 q
             })
@@ -64,6 +64,6 @@ fn parse_board(field: Option<&str>) -> Board {
 
 /// Returns the minimum precision such that no two values with denominator
 /// `denom` map to the same value.
-fn minimum_precision(denom: u64) -> usize {
+const fn minimum_precision(denom: u64) -> usize {
     denom.ilog10() as usize + 1
 }

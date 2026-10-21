@@ -50,6 +50,7 @@ impl Default for Solver {
 }
 
 impl Solver {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             // The `try_into` cannot fail: the length is `CACHE_LEN`.
@@ -69,7 +70,7 @@ impl Solver {
             self.table.fill(0);
             self.generation = 1;
         }
-        (self.generation as u64) << 48
+        u64::from(self.generation) << 48
     }
 
     /// Returns `true` if `word` is already cached. Otherwise stores it.
@@ -102,7 +103,7 @@ impl Solver {
         debug_assert!(board.clearshift() == board, "root board is not clearshifted");
 
         let cells = board.0.count_ones();
-        if cells % 4 != 0 {
+        if !cells.is_multiple_of(4) {
             return false;
         }
 
@@ -298,6 +299,7 @@ pub fn reachable(board: Board, queue: &[Piece], two_l: bool, saves: Saves, hold:
 pub struct Node(u64);
 
 impl Node {
+    #[must_use]
     pub const fn new(board: Board, hold: Option<Piece>, depth: u8) -> Self {
         let hold = match hold {
             Some(p) => p as u64 + 1,
@@ -307,20 +309,23 @@ impl Node {
         Node(board.0 | (hold << 40) | (depth << 44))
     }
 
+    #[must_use]
     pub const fn board(&self) -> Board {
         Board(self.0 & ((1 << 40) - 1))
     }
 
+    #[must_use]
     pub const fn hold(&self) -> Option<Piece> {
         let hold = (self.0 >> 40) & 0xf;
         if hold == 0 {
             None
         } else {
             // Valid by the layout assertion at the top of this file.
-            Some(unsafe { std::mem::transmute((hold - 1) as u8) })
+            Some(unsafe { std::mem::transmute::<u8, Piece>((hold - 1) as u8) })
         }
     }
 
+    #[must_use]
     pub const fn depth(&self) -> u8 {
         ((self.0 >> 44) & 0xf) as u8
     }
@@ -334,6 +339,7 @@ impl Node {
 
     /// Returns whether the board is `PC_2` or `PC_4` as `two_l` requires, and
     /// the leftover satisfies `save`.
+    #[must_use]
     pub fn is_goal(&self, two_l: bool, save: Saves, active: Option<Piece>) -> bool {
         let board = self.board();
         let is_pc = if two_l {

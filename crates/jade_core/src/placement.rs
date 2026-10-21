@@ -6,7 +6,7 @@ use crate::rotation::Rotation;
 // y=0..7 (3 bits)
 // rotation=0..3 (2 bits)
 // piece=0..6 (3 bits)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Move(u16);
 
 const PIECE_SHIFT: u16 = 0;

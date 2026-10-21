@@ -52,7 +52,7 @@ pub fn setups(pattern: DisjointPattern, n: usize, hold: bool) -> BTreeMap<Queue,
                 // All pieces of the left part must be placed. Queue indices
                 // below `d` are consumed. Only the hold piece among them is not
                 // placed.
-                if split != 0 && !(d >= split && hold_idx.map_or(true, |h| h >= split)) {
+                if split != 0 && !(d >= split && hold_idx.is_none_or(|h| h >= split)) {
                     return;
                 }
                 pairs.push((key, code));
@@ -115,7 +115,7 @@ fn prefixes(pattern: &DisjointPattern, n: usize) -> BTreeSet<(u64, usize)> {
             let mut out = BTreeSet::new();
             for a in &l {
                 for b in &r {
-                    let mut q = a.clone();
+                    let mut q = *a;
                     q.extend(b);
                     out.insert((cut(&q), a.len()));
                 }

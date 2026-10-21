@@ -86,14 +86,15 @@ struct Memo {
 #[must_use]
 pub fn congruents(target: Board, queues: &[Queue], hold: bool) -> Vec<Vec<Move>> {
     let cells = target.popcount();
-    if cells % 4 != 0 {
+    if !cells.is_multiple_of(4) {
         return Vec::new();
     }
 
     let k = (cells / 4) as usize;
-    if queues.iter().any(|q| q.len() > CAP) {
-        panic!("queue longer than {CAP}");
-    }
+    assert!(
+        !queues.iter().any(|q| q.len() > CAP),
+        "queue longer than {CAP}"
+    );
 
     // Only the first `k + 1` pieces can take part, so queues that agree there
     // cannot differ in the sequences they produce.
@@ -104,7 +105,10 @@ pub fn congruents(target: Board, queues: &[Queue], hold: bool) -> Vec<Vec<Move>>
         .iter()
         .map(|q| {
             let n = q.len().min(keep);
-            let code = q.prefix(n).iter().fold(0u64, |c, &p| (c << PIECE_BITS) | p as u64);
+            let code = q
+                .prefix(n)
+                .iter()
+                .fold(0u64, |c, &p| (c << PIECE_BITS) | p as u64);
             (code, n as u8)
         })
         .collect();
@@ -141,7 +145,15 @@ pub fn congruents(target: Board, queues: &[Queue], hold: bool) -> Vec<Vec<Move>>
 
     for &order in &orders {
         let seq = decode(order, k, &mut order_buf);
-        search(&ctx, &mut memo, Board::empty(), seq, 0, &mut path, &mut paths);
+        search(
+            &ctx,
+            &mut memo,
+            Board::empty(),
+            seq,
+            0,
+            &mut path,
+            &mut paths,
+        );
     }
 
     // A sequence can be produced by more than one order, for instance when two
@@ -290,7 +302,10 @@ mod tests {
     fn a_target_that_is_not_a_whole_number_of_pieces() {
         // Five cells cannot be built from whole pieces.
         let qs = [Queue::from_slice(&[Piece::I])];
-        assert!(congruents(Board::new(0b1_1111), &qs, false).is_empty());
+        assert_eq!(
+            congruents(Board::new(0b1_1111), &qs, false),
+            [] as [std::vec::Vec<jade_core::placement::Move>; 0]
+        );
     }
 
     #[test]
@@ -379,7 +394,10 @@ mod tests {
         let short = [Queue::from_slice(&[Piece::O, Piece::O])];
         let long = [Queue::from_slice(&[Piece::O, Piece::O, Piece::T])];
 
-        assert_eq!(congruents(target, &short, false), congruents(target, &long, false));
+        assert_eq!(
+            congruents(target, &short, false),
+            congruents(target, &long, false)
+        );
     }
 
     #[test]

@@ -72,7 +72,6 @@ const HEIGHT: i32 = 23;
 /// Returns the fumen with all pieces drawn onto the field of the first page.
 ///
 /// Errors when the input does not decode or when a piece leaves the field.
-#[must_use]
 pub fn unglue(f: &str) -> Result<String, String> {
     let glued = Fumen::decode(f).map_err(|e| e.to_string())?;
 
@@ -104,15 +103,15 @@ pub fn unglue(f: &str) -> Result<String, String> {
         // Every cell must be on the field. The source fails here for any
         // cell outside the field, including above the top.
         if cells.iter().any(|&(cx, cy)| {
-            !(0..WIDTH).contains(&(x + cx as i32)) || !(0..HEIGHT).contains(&(y + cy as i32))
+            !(0..WIDTH).contains(&(x + i32::from(cx))) || !(0..HEIGHT).contains(&(y + i32::from(cy)))
         }) {
             return Err("one of the pieces goes off the field".to_string());
         }
 
         let color = color_of(kind);
         for (cx, cy) in cells {
-            let row = clear_offset(y + cy as i32, rows_cleared);
-            field[row as usize][(x + cx as i32) as usize] = color;
+            let row = clear_offset(y + i32::from(cy), rows_cleared);
+            field[row as usize][(x + i32::from(cx)) as usize] = color;
             rows_modified |= 1 << row;
         }
 
@@ -132,7 +131,7 @@ pub fn unglue(f: &str) -> Result<String, String> {
 /// A cleared row shifts every mino above it down by one. Unglue does not
 /// clear the rows, so the shift must be reversed for each row that a
 /// previous piece completed below `y`.
-fn clear_offset(y: i32, rows_cleared: u32) -> i32 {
+const fn clear_offset(y: i32, rows_cleared: u32) -> i32 {
     let mut y = y;
     let mut cleared = rows_cleared;
     let mut mask = (1u32 << (y + 1)) - 1;
@@ -174,7 +173,7 @@ fn find_line_clears(field: &[[CellColor; 10]; 23], rows_modified: u32) -> u32 {
 ///
 /// The `fumen` crate already moved the piece center to the true rotation
 /// center on decode, so the rotation needs no further change.
-fn piece_of(piece: &FumenPiece) -> (Piece, Rotation) {
+const fn piece_of(piece: &FumenPiece) -> (Piece, Rotation) {
     let kind = match piece.kind {
         PieceType::T => Piece::T,
         PieceType::I => Piece::I,
@@ -196,7 +195,7 @@ fn piece_of(piece: &FumenPiece) -> (Piece, Rotation) {
 }
 
 /// Returns the field color of a piece.
-fn color_of(kind: Piece) -> CellColor {
+const fn color_of(kind: Piece) -> CellColor {
     match kind {
         Piece::T => CellColor::T,
         Piece::I => CellColor::I,

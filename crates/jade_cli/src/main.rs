@@ -116,7 +116,7 @@ pub enum Command {
         #[arg(short, long)]
         pattern: Pattern,
 
-        /// The field to build, as a fumen.
+        /// The field to build.
         #[arg(short, long)]
         field: String,
 
@@ -129,14 +129,17 @@ pub enum Command {
         #[arg(short, long)]
         pattern: Pattern,
 
-        /// Starting field for the solve, as a fumen. Defaults to an empty
-        /// field.
+        /// Starting field for the solve.
         #[arg(short, long)]
         field: Option<String>,
 
-        /// The save criteria to consider. Defaults to all pieces.
+        /// The save criteria to consider.
         #[arg(short, long, default_value_t = Saves::all())]
         save: Saves,
+    },
+
+    Render {
+        fields: Vec<String>,
     },
 }
 
@@ -169,9 +172,10 @@ impl FromStr for Hold {
 
 impl Display for Hold {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            true => write!(f, "use"),
-            false => write!(f, "avoid"),
+        if self.0 {
+            write!(f, "use")
+        } else {
+            write!(f, "avoid")
         }
     }
 }
@@ -183,10 +187,60 @@ impl Deref for Hold {
     }
 }
 
+pub fn letterize(x: usize) -> String {
+    // returns `x` as a base-26 string with 'A' as 0, 'B' as 1, ..., 'Z' as 25,
+    // 'AA' as 26, etc.
+    let mut x = x;
+    let mut s = String::new();
+    loop {
+        let c = (x % 26) as u8 + b'A';
+        s.push(c as char);
+        x /= 26;
+        if x == 0 {
+            break;
+        }
+    }
+
+    s.chars().rev().collect()
+}
+
 pub fn main() {
     let program = Program::parse();
 
     match program.cmd {
+        Command::Render { fields } => {
+            for (i, field) in fields.iter().enumerate() {
+                let f = Fumen::decode(field).unwrap();
+                for (j, page) in f.pages.iter().enumerate() {
+                    println!("{}{j}:", i + 1);
+
+                    use jade_core::render::*;
+                    println!("{TOP_LEFT}{}{TOP_RIGHT}", LINE.repeat(10));
+                    for y in (0..6).rev() {
+                        print!("{BAR}");
+                        for x in 0..10 {
+                            print!(
+                                "{}",
+                                match page.field[y][x] {
+                                    fumen::CellColor::Empty => EMPTY.to_string(),
+                                    fumen::CellColor::I => cell(Piece::I, EMPTY),
+                                    fumen::CellColor::O => cell(Piece::O, EMPTY),
+                                    fumen::CellColor::T => cell(Piece::T, EMPTY),
+                                    fumen::CellColor::L => cell(Piece::L, EMPTY),
+                                    fumen::CellColor::J => cell(Piece::J, EMPTY),
+                                    fumen::CellColor::S => cell(Piece::S, EMPTY),
+                                    fumen::CellColor::Z => cell(Piece::Z, EMPTY),
+                                    fumen::CellColor::Grey => CELL.to_string(),
+                                }
+                            );
+                        }
+                        println!("{BAR}");
+                    }
+                    println!("{BOTTOM_LEFT}{}{BOTTOM_RIGHT}", LINE.repeat(10));
+                }
+            }
+        }
+
         Command::Pattern(pattern_cmd) => match pattern_cmd {
             PatternSubcommand::Expand { pattern, separator } => {
                 let expanded = pattern.expand();
@@ -222,9 +276,8 @@ pub fn main() {
             let queue = &queues.first().unwrap();
             if solve::reachable(board, queue, two_l, save, *hold) {
                 std::process::exit(0);
-            } else {
-                std::process::exit(1);
             }
+            std::process::exit(1);
         }
 
         Command::Percent {
@@ -259,7 +312,7 @@ pub fn main() {
 
             eprintln!(
                 "{} ({})",
-                ss.values().map(|x| x.len()).sum::<usize>(),
+                ss.values().map(std::vec::Vec::len).sum::<usize>(),
                 ss.keys().join(" ")
             );
 
@@ -358,7 +411,7 @@ pub fn main() {
 
                     f.encode()
                 })
-                .map(|x| format!("{}", unglue(&x).unwrap()))
+                .map(|x| unglue(&x).unwrap().to_string())
                 .collect::<BTreeSet<_>>()
                 .iter()
                 .for_each(|x| println!("{x}"));
@@ -411,6 +464,6 @@ fn rate(n: u64, d: u64) -> f64 {
 
 /// Returns the minimum precision such that no two values with denominator
 /// `denom` map to the same value.
-fn minimum_precision(denom: u64) -> usize {
+const fn minimum_precision(denom: u64) -> usize {
     denom.ilog10() as usize + 1
 }

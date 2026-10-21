@@ -11,8 +11,6 @@ use std::fmt::Display;
 #[derive(Clone, PartialEq, Debug)]
 pub struct Pattern(pub Vec<Segment>);
 
-
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum Segment {
     Single(Piece),                // X
@@ -34,7 +32,9 @@ pub enum Condition {
     Not(Box<Self>),                                // !X
     Order(Box<Pattern>, Box<Pattern>, Comparator), // X < Y, X > Y, X <= Y, X >= Y, X == Y, X != Y
     Count(Box<Pattern>, usize, Comparator),        // X < N, X > N, X <= N, X >= N, X == N, X != N
-    Exists(Box<Pattern>),                          // X exists, i.e. count(X) > 0
+    Exists(Box<Pattern>),                          // X?, i.e. count(X) > 0
+    /// X@<N, the start index of some match of X compared with N.
+    Position(Box<Pattern>, usize, Comparator),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -253,6 +253,11 @@ impl Condition {
                 compare_count(count, *n, *comparator)
             }
             Self::Exists(a) => count_occurrences(a, pieces) > 0,
+            Self::Position(a, n, comparator) => {
+                let positions: Vec<usize> =
+                    occurrences(a, pieces).iter().map(|(s, _)| *s).collect();
+                positions.iter().any(|p| compare_count(*p, *n, *comparator))
+            }
         }
     }
 
@@ -263,7 +268,9 @@ impl Condition {
             }
             Condition::Not(condition) => 1 + condition.size(),
             Condition::Order(a, b, _) => 1 + a.size() + b.size(),
-            Condition::Count(a, _, _) | Condition::Exists(a) => 1 + a.size(),
+            Condition::Count(a, _, _) | Condition::Exists(a) | Condition::Position(a, _, _) => {
+                1 + a.size()
+            }
         }
     }
 }
@@ -356,10 +363,7 @@ fn max_len(segment: &Segment) -> usize {
         // holds one piece.
         Segment::Single(_) | Segment::Wildcard | Segment::Except(_) => 1,
         Segment::Group(inner) | Segment::Filter(inner, _) | Segment::All(inner) => max_len(inner),
-        Segment::Sequence(segments) => segments
-            .iter()
-            .map(max_len)
-            .fold(0, usize::saturating_add),
+        Segment::Sequence(segments) => segments.iter().map(max_len).fold(0, usize::saturating_add),
         Segment::Bag(items) => items.iter().map(max_len).max().unwrap_or(0),
         Segment::Permute(inner, n) => max_len(inner).min(*n),
         Segment::Choose(inner, n) => largest_sum(inner, *n),
@@ -515,7 +519,8 @@ impl Parser {
         let mut terms = vec![self.parse_term()?];
         while let Some(c) = self.peek() {
             match c {
-                ';' | '\n' | ',' | ']' | '}' | ')' | '&' | '|' | '<' | '>' | '=' | '!' => break,
+                ';' | '\n' | ',' | ']' | '}' | ')' | '&' | '|' | '<' | '>' | '=' | '!' | '?'
+                | '@' => break,
                 _ => {}
             }
             terms.push(self.parse_term()?);
@@ -667,6 +672,16 @@ impl Parser {
         self.skip_ws();
         let lhs = Box::new(self.parse_pattern()?);
         self.skip_ws();
+        // `X?` and `X@<N` take no relation operator.
+        if self.eat('?') {
+            return Ok(Condition::Exists(lhs));
+        }
+        if self.eat('@') {
+            let comparator = self.parse_relop()?;
+            self.skip_ws();
+            let n = self.digits()?;
+            return Ok(Condition::Position(lhs, n, comparator));
+        }
         let comparator = self.parse_relop()?;
         self.skip_ws();
         if self.peek().is_some_and(|c| c.is_ascii_digit()) {
@@ -742,6 +757,18 @@ impl Display for Segment {
     }
 }
 
+/// The text form of a relation operator.
+const fn comparator_symbol(comparator: Comparator) -> &'static str {
+    match comparator {
+        Comparator::Eq => "==",
+        Comparator::Ne => "!=",
+        Comparator::Lt => "<",
+        Comparator::Le => "<=",
+        Comparator::Gt => ">",
+        Comparator::Ge => ">=",
+    }
+}
+
 impl Display for Condition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -759,30 +786,18 @@ impl Display for Condition {
                     .collect();
                 write!(f, "{}", conditions.join("|"))
             }
-            Self::Not(condition) => write!(f, "!{condition}"),
+            Self::Not(condition) => write!(f, "!({condition})"),
             Self::Order(lhs, rhs, comparator) => {
-                let op = match comparator {
-                    Comparator::Eq => "==",
-                    Comparator::Ne => "!=",
-                    Comparator::Lt => "<",
-                    Comparator::Le => "<=",
-                    Comparator::Gt => ">",
-                    Comparator::Ge => ">=",
-                };
-                write!(f, "{lhs}{op}{rhs}")
+                write!(f, "{lhs}{}{rhs}", comparator_symbol(*comparator))
             }
             Self::Count(pattern, n, comparator) => {
-                let op = match comparator {
-                    Comparator::Eq => "==",
-                    Comparator::Ne => "!=",
-                    Comparator::Lt => "<",
-                    Comparator::Le => "<=",
-                    Comparator::Gt => ">",
-                    Comparator::Ge => ">=",
-                };
-                write!(f, "{pattern}{op}{n}")
+                write!(f, "{pattern}{}{n}", comparator_symbol(*comparator))
             }
-            Self::Exists(pattern) => write!(f, "{pattern}"),
+            Self::Exists(pattern) => write!(f, "{pattern}?"),
+            Self::Position(pattern, n, comparator) => {
+                let op = comparator_symbol(*comparator);
+                write!(f, "{pattern}@{op}{n}")
+            }
         }
     }
 }

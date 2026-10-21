@@ -5,15 +5,19 @@ use std::str::FromStr;
 
 use clap::Parser;
 
+use fumen::Fumen;
 use itertools::Itertools;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::queue::Queue;
+use jade_core::rotation::Rotation;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
+use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
+use jade_solve::fumen::unglue;
 use jade_solve::percent::percent;
 use jade_solve::saves::Saves;
 use jade_solve::setup::setups;
@@ -101,6 +105,20 @@ pub enum Command {
         /// fills. Every expansion must be a single piece.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
+
+        /// Whether to support hold.
+        #[arg(long, default_value_t = Hold(true))]
+        hold: Hold,
+    },
+
+    /// Reports every move sequence that builds the given field.
+    Congruents {
+        #[arg(short, long)]
+        pattern: Pattern,
+
+        /// The field to build, as a fumen.
+        #[arg(short, long)]
+        field: String,
 
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
@@ -294,6 +312,56 @@ pub fn main() {
                 let mp = minimum_precision(*d);
                 println!("{}\t{n}\t{d}\t{p:.mp$}\t{queue}", encode_fumen(board));
             }
+        }
+
+        Command::Congruents {
+            pattern,
+            field,
+            hold,
+        } => {
+            let target = parse_board(Some(&field));
+            let queues: Vec<Queue> = pattern.expand().into_iter().collect();
+
+            congruents(target, &queues, *hold)
+                .iter()
+                .map(|x| {
+                    let mut b = Board::empty();
+                    let mut f = Fumen::default();
+                    let mut lc = 0;
+                    for &m in x {
+                        let page = f.add_page();
+
+                        page.piece = Some(fumen::Piece {
+                            kind: match m.piece() {
+                                Piece::I => fumen::PieceType::I,
+                                Piece::O => fumen::PieceType::O,
+                                Piece::T => fumen::PieceType::T,
+                                Piece::L => fumen::PieceType::L,
+                                Piece::J => fumen::PieceType::J,
+                                Piece::S => fumen::PieceType::S,
+                                Piece::Z => fumen::PieceType::Z,
+                            },
+                            rotation: match m.rotation() {
+                                Rotation::North => fumen::RotationState::North,
+                                Rotation::East => fumen::RotationState::East,
+                                Rotation::South => fumen::RotationState::South,
+                                Rotation::West => fumen::RotationState::West,
+                            },
+                            x: m.x() as u32,
+                            y: m.y() as u32 - lc as u32,
+                        });
+
+                        b |= m.mask();
+                        b = b.clearshift();
+                        lc = b.line_clears();
+                    }
+
+                    f.encode()
+                })
+                .map(|x| format!("{}", unglue(&x).unwrap()))
+                .collect::<BTreeSet<_>>()
+                .iter()
+                .for_each(|x| println!("{x}"));
         }
 
         Command::Saves {

@@ -139,8 +139,12 @@ fn decode(code: u64, n: usize, buf: &mut [Piece; 12]) -> &[Piece] {
 /// 1. Place the active piece.
 /// 2. Place the hold piece (skipped if it equals the active piece).
 /// 3. If hold is empty, hold the active piece and place the next piece.
+///
+/// Shared with [`crate::congruents`], which resolves hold into a piece order
+/// with this and then searches boards. Both must keep the same options as
+/// `Solver::search`, which is why this is one function.
 #[allow(clippy::too_many_arguments)]
-fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
+pub(crate) fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
     queue: &[Piece],
     k: usize,
     hold_on: bool,

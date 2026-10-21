@@ -1,4 +1,5 @@
 //! Boolean Perfect-Clear solver.
+pub mod congruents;
 pub mod fumen;
 pub mod moves;
 pub mod percent;

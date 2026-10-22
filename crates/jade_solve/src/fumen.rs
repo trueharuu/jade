@@ -29,6 +29,20 @@ pub fn parse_fumen(s: &str) -> Result<Board, String> {
     Ok(board.clearshift())
 }
 
+/// Joins several fumens into one. Stub.
+#[must_use]
+pub fn join(fumens: &[&str]) -> String {
+    let mut f = Fumen::default();
+    for fumen in fumens {
+        let decoded = Fumen::decode(fumen).unwrap();
+        for page in decoded.pages {
+            f.pages.push(page);
+        }
+    }
+
+    f.encode()
+}
+
 /// Encodes a [`Board`] into a one-page fumen.
 /// Only the first four rows are encoded, and only grey (filled) cells are kept.
 #[inline]

@@ -17,6 +17,7 @@ use jade_pattern::disjoint::DisjointPattern;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
+use jade_solve::fumen::join;
 use jade_solve::fumen::unglue;
 use jade_solve::percent::percent;
 use jade_solve::saves::Saves;
@@ -109,6 +110,10 @@ pub enum Command {
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
         hold: Hold,
+
+        /// Report all congruents that can be built using the used pieces.
+        #[arg(long)]
+        build: bool,
     },
 
     /// Reports every move sequence that builds the given field.
@@ -212,7 +217,7 @@ pub fn main() {
             for (i, field) in fields.iter().enumerate() {
                 let f = Fumen::decode(field).unwrap();
                 for (j, page) in f.pages.iter().enumerate() {
-                    println!("{}{j}:", i + 1);
+                    println!("{}{}:", i + 1, letterize(j));
 
                     use jade_core::render::*;
                     println!("{TOP_LEFT}{}{TOP_RIGHT}", LINE.repeat(10));
@@ -302,6 +307,7 @@ pub fn main() {
             limit,
             hold,
             save,
+            build,
         } => {
             if limit.is_some() && cutoff.is_some() {
                 eprintln!("error: --limit cannot be used with --cutoff");
@@ -363,7 +369,49 @@ pub fn main() {
             for (queue, board, n, d) in &results {
                 let p = rate(*n, *d);
                 let mp = minimum_precision(*d);
-                println!("{}\t{n}\t{d}\t{p:.mp$}\t{queue}", encode_fumen(board));
+                let left = if build {
+                    let congruent_fumens: Vec<String> = congruents(*board, &[*queue], *hold)
+                        .iter()
+                        .map(|x| {
+                            let mut b = Board::empty();
+                            let mut f = Fumen::default();
+                            let mut lc = 0;
+                            for &m in x {
+                                let page = f.add_page();
+                                page.piece = Some(fumen::Piece {
+                                    kind: match m.piece() {
+                                        Piece::I => fumen::PieceType::I,
+                                        Piece::O => fumen::PieceType::O,
+                                        Piece::T => fumen::PieceType::T,
+                                        Piece::L => fumen::PieceType::L,
+                                        Piece::J => fumen::PieceType::J,
+                                        Piece::S => fumen::PieceType::S,
+                                        Piece::Z => fumen::PieceType::Z,
+                                    },
+                                    rotation: match m.rotation() {
+                                        Rotation::North => fumen::RotationState::North,
+                                        Rotation::East => fumen::RotationState::East,
+                                        Rotation::South => fumen::RotationState::South,
+                                        Rotation::West => fumen::RotationState::West,
+                                    },
+                                    x: m.x() as u32,
+                                    y: m.y() as u32 - lc as u32,
+                                });
+                                b |= m.mask();
+                                b = b.clearshift();
+                                lc = b.line_clears();
+                            }
+                            unglue(&f.encode()).unwrap()
+                        })
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect();
+                    let refs: Vec<&str> = congruent_fumens.iter().map(String::as_str).collect();
+                    join(&refs)
+                } else {
+                    encode_fumen(board)
+                };
+                println!("{left}\t{n}\t{d}\t{p:.mp$}\t{queue}");
             }
         }
 

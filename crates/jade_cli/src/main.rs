@@ -608,11 +608,20 @@ pub fn main() {
             let board = parse_board(field.as_deref());
 
             if let Some(res) = best(board, queue.as_slice(), false, save, *hold) {
-                let mut b = Board::empty();
+                let mut b = board;
                 let mut f = Fumen::default();
-                let mut lc = 0;
-                for &m in &res.moves {
+                let mut cleared = 0i32;
+                for (i, &m) in res.moves.iter().enumerate() {
                     let page = f.add_page();
+                    if i == 0 {
+                        for y in 0..4 {
+                            for x in 0..10 {
+                                if board.get(x as i32, y as i32) {
+                                    page.field[y][x] = fumen::CellColor::Grey;
+                                }
+                            }
+                        }
+                    }
                     page.piece = Some(fumen::Piece {
                         kind: match m.piece() {
                             Piece::I => fumen::PieceType::I,
@@ -630,11 +639,14 @@ pub fn main() {
                             Rotation::West => fumen::RotationState::West,
                         },
                         x: m.x() as u32,
-                        y: m.y() as u32 - lc as u32,
+                        y: (m.y() - cleared) as u32,
                     });
+                    let lines_this = (b | m.mask()).line_clears()
+                        .saturating_sub(b.line_clears()) as i32;
+                    // apply placement for b tracking
                     b |= m.mask();
                     b = b.clearshift();
-                    lc = b.line_clears();
+                    cleared += lines_this;
                 }
                 let fumen_str = unglue(&f.encode()).unwrap_or_else(|_| f.encode());
 

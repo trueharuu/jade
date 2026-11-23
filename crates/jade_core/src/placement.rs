@@ -1,22 +1,28 @@
+use std::fmt::Display;
+
 use crate::board::Board;
 use crate::piece::Piece;
 use crate::rotation::Rotation;
+use crate::score::Spin;
 
 // x=0..9 (4 bits)
 // y=0..7 (3 bits)
 // rotation=0..3 (2 bits)
 // piece=0..6 (3 bits)
+// spin=0..2 (2 bits)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Move(u16);
+pub struct Move(u32);
 
-const PIECE_SHIFT: u16 = 0;
-const X_SHIFT: u16 = 3;
-const Y_SHIFT: u16 = 3 + 4;
-const ROT_SHIFT: u16 = 3 + 4 + 3;
-const PIECE_MASK: u16 = 0b111;
-const X_MASK: u16 = 0b1111;
-const Y_MASK: u16 = 0b111;
-const ROT_MASK: u16 = 0b11;
+const PIECE_SHIFT: u32 = 0;
+const X_SHIFT: u32 = 3;
+const Y_SHIFT: u32 = 3 + 4;
+const ROT_SHIFT: u32 = 3 + 4 + 3;
+const SPIN_SHIFT: u32 = 3 + 4 + 3 + 2;
+const PIECE_MASK: u32 = 0b111;
+const X_MASK: u32 = 0b1111;
+const Y_MASK: u32 = 0b111;
+const ROT_MASK: u32 = 0b11;
+const SPIN_MASK: u32 = 0b11;
 
 impl Move {
     /// Returns an invalid, null [`Move`].
@@ -29,7 +35,7 @@ impl Move {
     /// Returns the raw 16-bit representation of this [`Move`].
     #[inline]
     #[must_use]
-    pub const fn raw(self) -> u16 {
+    pub const fn raw(self) -> u32 {
         self.0
     }
 
@@ -39,23 +45,25 @@ impl Move {
     /// The value must be a valid move.
     #[inline]
     #[must_use]
-    pub const unsafe fn from_raw(raw: u16) -> Self {
+    pub const unsafe fn from_raw(raw: u32) -> Self {
         Self(raw)
     }
 
     /// Creates a new [`Move`] from its components.
     #[inline]
     #[must_use]
-    pub const fn new(piece: Piece, x: i32, y: i32, rotation: Rotation) -> Self {
-        let p = piece as u16;
-        let r = rotation as u16;
-        let x = x as u16;
-        let y = y as u16;
+    pub const fn new(piece: Piece, x: i32, y: i32, rotation: Rotation, spin: Spin) -> Self {
+        let p = piece as u32;
+        let r = rotation as u32;
+        let x = x as u32;
+        let y = y as u32;
+        let s = spin as u32;
         Self(
             (p & PIECE_MASK) << PIECE_SHIFT
                 | (x & X_MASK) << X_SHIFT
                 | (y & Y_MASK) << Y_SHIFT
-                | (r & ROT_MASK) << ROT_SHIFT,
+                | (r & ROT_MASK) << ROT_SHIFT
+                | (s & SPIN_MASK) << SPIN_SHIFT,
         )
     }
 
@@ -89,6 +97,14 @@ impl Move {
     pub const fn rotation(self) -> Rotation {
         let r = (self.0 >> ROT_SHIFT) & ROT_MASK;
         Rotation::from_u8(r as u8)
+    }
+
+    /// Decodes the [`Spin`] component.
+    #[inline]
+    #[must_use]
+    pub const fn spin(self) -> Spin {
+        let s = (self.0 >> SPIN_SHIFT) & SPIN_MASK;
+        unsafe { std::mem::transmute(s as u8) }
     }
 
     /// Returns the placement mask for this move, or `None` when the move
@@ -127,7 +143,20 @@ impl Move {
                 self.x().saturating_sub(dx),
                 self.y().saturating_sub(dy),
                 cr,
+                self.spin(),
             )
         }
+    }
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Move")
+            .field(&self.piece())
+            .field(&self.x())
+            .field(&self.y())
+            .field(&self.rotation())
+            .field(&self.spin())
+            .finish()
     }
 }

@@ -1,13 +1,15 @@
 use jade_core::board::Board;
-use jade_core::header::WIDTH;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
+use jade_core::score::Spin;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Moves {
     pub piece: Piece,
-    pub mask: [Board; Rotation::NB],
+    pub none: [Board; Rotation::NB],
+    pub mini: [Board; Rotation::NB],
+    pub full: [Board; Rotation::NB],
 }
 
 impl Moves {
@@ -16,7 +18,9 @@ impl Moves {
     #[must_use]
     pub const fn empty(piece: Piece) -> Self {
         Self {
-            mask: [Board::empty(); Rotation::NB],
+            none: [Board::empty(); Rotation::NB],
+            mini: [Board::empty(); Rotation::NB],
+            full: [Board::empty(); Rotation::NB],
             piece,
         }
     }
@@ -27,11 +31,16 @@ impl Moves {
     #[must_use]
     pub const fn insert(&mut self, mv: Move) -> bool {
         let r = mv.rotation() as usize;
+        let mask = match mv.spin() {
+            Spin::None => &mut self.none[r],
+            Spin::Mini => &mut self.mini[r],
+            Spin::Full => &mut self.full[r],
+        };
 
-        if self.mask[r].get(mv.x(), mv.y()) {
+        if mask.get(mv.x(), mv.y()) {
             false
         } else {
-            self.mask[r].set(mv.x(), mv.y());
+            mask.set(mv.x(), mv.y());
             true
         }
     }
@@ -43,8 +52,10 @@ impl Moves {
     pub const fn iter(&self) -> MovesIter<'_> {
         MovesIter {
             moves: self,
+            spin: 0,
             rotation: 0,
-            mask: 0,
+            x: 0,
+            y: 0,
         }
     }
 }
@@ -52,8 +63,10 @@ impl Moves {
 // An iterator over the moves in a [`Moves`] buffer.
 pub struct MovesIter<'a> {
     moves: &'a Moves,
+    spin: usize,
     rotation: usize,
-    mask: u64,
+    x: i32,
+    y: i32,
 }
 
 impl Iterator for MovesIter<'_> {
@@ -61,26 +74,41 @@ impl Iterator for MovesIter<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.mask == 0 {
-                if self.rotation >= Rotation::NB {
-                    return None;
+        const SPINS: [Spin; 3] = [Spin::None, Spin::Mini, Spin::Full];
+
+        while self.spin < 3 {
+            while self.rotation < Rotation::NB {
+                while self.y < jade_core::header::LINES {
+                    while self.x < jade_core::header::WIDTH {
+                        let board = match self.spin {
+                            0 => self.moves.none[self.rotation],
+                            1 => self.moves.mini[self.rotation],
+                            _ => self.moves.full[self.rotation],
+                        };
+                        if board.get(self.x, self.y) {
+                            let mv = Move::new(
+                                self.moves.piece,
+                                self.x,
+                                self.y,
+                                Rotation::from_u8(self.rotation as u8),
+                                SPINS[self.spin],
+                            );
+                            self.x += 1;
+                            return Some(mv);
+                        }
+                        self.x += 1;
+                    }
+                    self.x = 0;
+                    self.y += 1;
                 }
-                self.mask = self.moves.mask[self.rotation].0;
+                self.y = 0;
                 self.rotation += 1;
-                continue;
             }
-            let tz = self.mask.trailing_zeros() as i32;
-            let x = tz % WIDTH;
-            let y = tz / WIDTH;
-            self.mask &= self.mask - 1;
-            return Some(Move::new(
-                self.moves.piece,
-                x,
-                y,
-                Rotation::from_u8((self.rotation - 1) as u8),
-            ));
+            self.rotation = 0;
+            self.spin += 1;
         }
+
+        None
     }
 }
 

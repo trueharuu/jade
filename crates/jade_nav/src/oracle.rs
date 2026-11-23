@@ -2,11 +2,13 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
+use jade_core::score::Spin;
 
 use crate::buffer::Moves;
 use crate::op::apply_rotation;
 use crate::op::check;
 use crate::op::fit_map;
+use crate::op::t_corners;
 use crate::op::usable_map;
 use crate::queue::Queue;
 
@@ -24,10 +26,12 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let usable = usable_map::<P>(board);
     let fit = fit_map::<P>();
 
+    let (c3mask, cf_masks) = t_corners(board);
+
     let sx = 4;
     let sy = P.h_spawn();
 
-    let spawn = Move::new(P, sx, sy, Rotation::North);
+    let spawn = Move::new(P, sx, sy, Rotation::North, Spin::None);
     if check::<P>(&usable, spawn.x(), spawn.y(), spawn.rotation() as usize) {
         queue.push_back(spawn);
     }
@@ -48,7 +52,12 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
         }
 
         {
-            let dropped_ghost = Move::new(P, x, drop_y, ghost.rotation());
+            let spin = if drop_y != y {
+                Spin::None
+            } else {
+                ghost.spin()
+            };
+            let dropped_ghost = Move::new(P, x, drop_y, ghost.rotation(), spin);
             let c = dropped_ghost.canonicalize();
             if fit[c.rotation() as usize].get(c.x(), c.y()) {
                 let _ = landed.insert(c);
@@ -62,7 +71,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
                 continue 'd;
             }
 
-            let new_ghost = Move::new(ghost.piece(), x1, y, ghost.rotation());
+            let new_ghost = Move::new(ghost.piece(), x1, y, ghost.rotation(), Spin::None);
             queue.push_back(new_ghost);
         }
 
@@ -74,35 +83,98 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
             }
 
             if dy != y {
-                let new_ghost = Move::new(ghost.piece(), x, dy, ghost.rotation());
+                let new_ghost = Move::new(ghost.piece(), x, dy, ghost.rotation(), Spin::None);
                 queue.push_back(new_ghost);
             }
         }
 
         // rotation (cw)
         {
-            let new_ghost = apply_rotation::<P>(&usable, &ghost, ghost.rotation().cw());
+            let (mut new_ghost, kick_idx) =
+                apply_rotation::<P>(&usable, &ghost, ghost.rotation().cw());
             if new_ghost != ghost {
+                let spin = label_spin::<P>(
+                    new_ghost,
+                    c3mask,
+                    cf_masks[new_ghost.rotation() as usize],
+                    kick_idx,
+                );
+                new_ghost = Move::new(
+                    new_ghost.piece(),
+                    new_ghost.x(),
+                    new_ghost.y(),
+                    new_ghost.rotation(),
+                    spin,
+                );
                 queue.push_back(new_ghost);
             }
         }
 
         // rotation (ccw)
         {
-            let new_ghost = apply_rotation::<P>(&usable, &ghost, ghost.rotation().ccw());
+            let (mut new_ghost, kick_idx) =
+                apply_rotation::<P>(&usable, &ghost, ghost.rotation().ccw());
             if new_ghost != ghost {
+                let spin = label_spin::<P>(
+                    new_ghost,
+                    c3mask,
+                    cf_masks[new_ghost.rotation() as usize],
+                    kick_idx,
+                );
+                new_ghost = Move::new(
+                    new_ghost.piece(),
+                    new_ghost.x(),
+                    new_ghost.y(),
+                    new_ghost.rotation(),
+                    spin,
+                );
                 queue.push_back(new_ghost);
             }
         }
 
         // rotation (180)
         {
-            let new_ghost = apply_rotation::<P>(&usable, &ghost, ghost.rotation().flip());
+            let (mut new_ghost, kick_idx) =
+                apply_rotation::<P>(&usable, &ghost, ghost.rotation().flip());
             if new_ghost != ghost {
+                let spin = label_spin::<P>(
+                    new_ghost,
+                    c3mask,
+                    cf_masks[new_ghost.rotation() as usize],
+                    kick_idx,
+                );
+                new_ghost = Move::new(
+                    new_ghost.piece(),
+                    new_ghost.x(),
+                    new_ghost.y(),
+                    new_ghost.rotation(),
+                    spin,
+                );
                 queue.push_back(new_ghost);
             }
         }
     }
 
     landed
+}
+
+#[inline]
+#[must_use]
+pub const fn label_spin<const P: Piece>(mv: Move, c3: Board, cf: Board, k_idx: usize) -> Spin {
+    if !matches!(P, Piece::T) {
+        return Spin::None;
+    }
+
+    let x = mv.x();
+    let y = mv.y();
+
+    if !c3.get(x, y) {
+        return Spin::None;
+    }
+
+    if cf.get(x, y) || k_idx >= 4 {
+        return Spin::Full;
+    }
+
+    Spin::Mini
 }

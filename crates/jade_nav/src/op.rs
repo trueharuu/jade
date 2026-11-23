@@ -11,6 +11,7 @@ use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rot_idx;
 use jade_core::rotation::Rotation;
+use jade_core::score::Spin;
 
 #[inline]
 #[must_use]
@@ -142,9 +143,9 @@ pub fn apply_rotation<const P: Piece>(
     usable: &[Board; Rotation::NB],
     mv: &Move,
     target: Rotation,
-) -> Move {
+) -> (Move, usize) {
     if mv.rotation() == target || matches!(P, Piece::O) {
-        return *mv;
+        return (*mv, 4);
     }
 
     let kt = match mv.piece() {
@@ -160,11 +161,11 @@ pub fn apply_rotation<const P: Piece>(
         let new_x = mv.x() + dx;
         let new_y = mv.y() + dy;
         if check::<P>(usable, new_x, new_y, target as usize) {
-            return Move::new(mv.piece(), new_x, new_y, target);
+            return (Move::new(mv.piece(), new_x, new_y, target, Spin::None), kick_idx);
         }
     }
 
-    *mv
+    (*mv, 4)
 }
 
 #[macro_export]
@@ -227,4 +228,28 @@ pub fn horizontal_tuck(s: Board, usable: &Board) -> Board {
     const ML: u64 = MASK & !col_mask(9);
     const MR: u64 = MASK & !col_mask(0);
     Board(((s.0 & ML) << 1) | ((s.0 & MR) >> 1)) & *usable
+}
+
+// spin detection maps
+
+#[inline]
+#[must_use]
+pub fn t_corners(b: &Board) -> (Board, [Board; Rotation::NB]) {
+    let col0 = Board(col_mask(0));
+    let col9 = Board(col_mask(9));
+
+    let mut floor = Board::empty();
+    floor.0 = 0x3ff;
+
+    let c0 = b.shifted(1, -1) | col0;
+    let c1 = b.shifted(-1, -1) | col9;
+    let c2 = b.shifted(-1, 1) | col9 | floor;
+    let c3 = b.shifted(1, 1) | col0 | floor;
+
+    let has3 = !*b & ((c0 & c1 & (c2 | c3)) | ((c2 & c3) & (c0 | c1)));
+
+    (
+        has3,
+        [!*b & c0 & c1, !*b & c1 & c2, !*b & c2 & c3, !*b & c3 & c0],
+    )
 }

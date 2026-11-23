@@ -8,6 +8,7 @@ use jade_core::rotation::Rotation;
 
 use crate::buffer::Moves;
 use crate::op::landable_map;
+use crate::op::t_corners;
 use crate::op::usable_map;
 use crate::unroll;
 
@@ -34,17 +35,17 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
         return Moves::empty(P);
     }
 
-    // Single-pass BFS in the shape of Cobra's movegen. `search[r]` holds
-    // reached cells of raw rotation `r` whose shifts and kicks are still
-    // pending; `unsearched[r]` holds cells of `fit[r]` not reached yet.
-    // Each processed rotation runs its shifts to closure, expands its kick
-    // lanes once, then clears its plane. `pending` requeues rotations that
-    // received new cells.
-    //
-    // Note: Cobra additionally seeds every rotation with the fall closure
-    // from the board top before this loop, which is exact under their
-    // drop-from-top entry and is inexact under the spawn-entry oracle this
-    // module must match, so seeding here starts from spawn only.
+    // Spin tracking: cells reachable with each spin stratum. Movement resets
+    // spin to `None`, so shifted cells are recorded in `none_spin`; rotation
+    // arrivals are recorded according to `label` (corner + kick index).
+    let mut none_spin = [Board::empty(); Rotation::NB];
+    let mut mini_spin = [Board::empty(); Rotation::NB];
+    let mut full_spin = [Board::empty(); Rotation::NB];
+
+    let is_t = matches!(P, Piece::T);
+    let tc = if is_t { Some(t_corners(board)) } else { None };
+
+    // Single-pass BFS in the shape of Cobra's movegen.
     let mut search = [Board::empty(); Rotation::NB];
     let mut unsearched = [Board::empty(); Rotation::NB];
 
@@ -52,6 +53,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 
     search[0].set(sx, sy);
     unsearched[0].0 &= !(1u64 << (sy * 10 + sx));
+    none_spin[0].set(sx, sy);
 
     let mut pending = 1u32;
 
@@ -60,10 +62,20 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
             if pending & (1 << r) != 0 {
                 pending &= !(1 << r);
 
-                shifts(&mut search, &mut unsearched, r);
+                // Shifts reset spin: newly reached cells are `None`.
+                shifts(&mut search, &mut unsearched, r, &fit, &mut none_spin);
 
                 if !matches!(P, Piece::O) {
-                    kick_seq::<P, { r }>(&mut search, &mut unsearched, &fit, &mut pending);
+                    kick_seq::<P, { r }>(
+                        &mut search,
+                        &mut unsearched,
+                        &fit,
+                        &mut pending,
+                        tc.as_ref(),
+                        &mut none_spin,
+                        &mut mini_spin,
+                        &mut full_spin,
+                    );
                 }
 
                 search[r] = Board::empty();
@@ -73,19 +85,37 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
 
     let mut moves = Moves::empty(P);
     unroll!(r, cs, {
-        // reached cells are the complement of `unsearched` inside `fit`;
-        // landed_ok only exists to remove technically valid placements but exceed the wanted 10x4 area
-        moves.mask[r] = (!unsearched[r] & fit[r]) & landed[r] & Board(LANDED_OK[P as usize][r]);
+        let reached = !unsearched[r] & fit[r];
+        let landed_mask = landed[r] & Board(LANDED_OK[P as usize][r]);
+        let landed_cells = reached & landed_mask;
+        // Spin is kept only when the placement is already on support. A piece
+        // that has to fall to land loses its spin and counts as `None`.
+        let floating = reached & !landed[r];
+        let dropped_none = project_down(floating, landed[r]) & Board(LANDED_OK[P as usize][r]);
+
+        moves.none[r] = (landed_cells & none_spin[r]) | dropped_none;
+        if is_t {
+            moves.mini[r] = landed_cells & mini_spin[r];
+            moves.full[r] = landed_cells & full_spin[r];
+        }
     });
 
     moves
 }
 
 #[inline]
-fn shifts(search: &mut [Board; Rotation::NB], unsearched: &mut [Board; Rotation::NB], r: usize) {
+fn shifts(
+    search: &mut [Board; Rotation::NB],
+    unsearched: &mut [Board; Rotation::NB],
+    r: usize,
+    fit: &[Board; Rotation::NB],
+    none_spin: &mut [Board; Rotation::NB],
+) {
     loop {
         let g = search[r];
-        let temp = (g.shr() | g.shl() | g.shd()) & unsearched[r];
+        let all = g.shr() | g.shl() | g.shd();
+        none_spin[r] |= all & fit[r];
+        let temp = all & unsearched[r];
 
         if !temp.any() {
             break;
@@ -97,31 +127,100 @@ fn shifts(search: &mut [Board; Rotation::NB], unsearched: &mut [Board; Rotation:
 }
 
 #[inline]
+const fn project_down(sources: Board, landable: Board) -> Board {
+    let mut result = Board::empty();
+    let mut x = 0;
+    while x < 10 {
+        let mut src_col = 0u8;
+        let mut land_col = 0u8;
+        let mut y = 0;
+        while y < 6 {
+            if sources.0 & (1u64 << (y * 10 + x)) != 0 {
+                src_col |= 1 << y;
+            }
+            if landable.0 & (1u64 << (y * 10 + x)) != 0 {
+                land_col |= 1 << y;
+            }
+            y += 1;
+        }
+
+        // For each source bit, find the first landable bit at or below it.
+        let mut yy = 0;
+        while yy < 6 {
+            if src_col & (1 << yy) != 0 {
+                // find nearest landable at or below yy
+                let mut target = -1i32;
+                let mut t = yy;
+                while t >= 0 {
+                    if land_col & (1 << t) != 0 {
+                        target = t;
+                        break;
+                    }
+                    t -= 1;
+                }
+                if target >= 0 {
+                    result.0 |= 1u64 << (target as usize * 10 + x);
+                }
+            }
+            yy += 1;
+        }
+        x += 1;
+    }
+    result
+}
+
+#[inline]
 fn kick_seq<const P: Piece, const R: usize>(
     search: &mut [Board; Rotation::NB],
     unsearched: &mut [Board; Rotation::NB],
     fit: &[Board; Rotation::NB],
     pending: &mut u32,
+    tc: Option<&(Board, [Board; Rotation::NB])>,
+    none_spin: &mut [Board; Rotation::NB],
+    mini_spin: &mut [Board; Rotation::NB],
+    full_spin: &mut [Board; Rotation::NB],
 ) {
     let kt = match P {
         Piece::I => &KICKS_I,
         _ => &KICKS_TJLSZ,
     };
 
+    let is_t = matches!(P, Piece::T);
+
     unroll!(t, P.search_size(), {
         let lane = kt[R][t];
         let mut temp = search[R];
         let mut result = Board::empty();
 
-        let mut n = 0;
+        let mut n = 0usize;
         while n < lane.1 {
             let kx = i32::from(lane.0[n].0);
             let ky = i32::from(lane.0[n].1);
 
-            // candidates are accumulated against the static `fit` board, and
-            // every source whose target fits is dropped, so the first-valid
-            // kick order is kept regardless of which sources were visited
-            result |= temp.shifted(kx, ky) & fit[t];
+            let arrivals = temp.shifted(kx, ky) & fit[t];
+
+            // Label spin arrivals (T only), for all first-valid arrivals,
+            // regardless of whether the cell is new to `unsearched`.
+            if is_t {
+                if let Some((c3, cf)) = tc {
+                    let spins = arrivals & *c3;
+                    if n >= 4 {
+                        full_spin[t] |= spins;
+                    } else {
+                        let front = spins & cf[t];
+                        let back = spins & !cf[t];
+                        full_spin[t] |= front;
+                        mini_spin[t] |= back;
+                    }
+                    // Rotations that do not satisfy 3 corners carry no spin.
+                    let no_spin_arrivals = arrivals & !*c3;
+                    none_spin[t] |= no_spin_arrivals;
+                }
+            } else {
+                none_spin[t] |= arrivals;
+            }
+
+            result |= arrivals;
             temp &= !fit[t].shifted(-kx, -ky);
 
             n += 1;

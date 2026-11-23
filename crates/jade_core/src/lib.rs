@@ -8,3 +8,4 @@ pub mod placement;
 pub mod render;
 pub mod rotation;
 pub mod queue;
+pub mod score;

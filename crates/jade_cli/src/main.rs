@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Display;
+
+use rayon::prelude::*;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -14,6 +16,7 @@ use jade_core::queue::Queue;
 use jade_core::rotation::Rotation;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
+use jade_solve::best::best;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
@@ -141,6 +144,44 @@ pub enum Command {
         /// The save criteria to consider.
         #[arg(short, long, default_value_t = Saves::all())]
         save: Saves,
+    },
+
+    /// Finds the best scoring paths for a set of queues
+    Score {
+        #[arg(short, long)]
+        pattern: Pattern,
+
+        /// Starting field for the solve as a fumen.
+        #[arg(short, long)]
+        field: Option<String>,
+
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
+
+        /// Whether to support hold.
+        #[arg(long, default_value_t = Hold(true))]
+        hold: Hold,
+    },
+
+    /// Finds the single best scoring path for a single queue
+    Scoring {
+        #[arg(short, long)]
+        pattern: Queue,
+
+        /// Starting field for the solve as a fumen.
+        #[arg(short, long)]
+        field: Option<String>,
+
+        /// Require the hold to hold a piece of this pattern when the field
+        /// fills. Every expansion must be a single piece.
+        #[arg(short, long, default_value_t = Saves::empty())]
+        save: Saves,
+
+        /// Whether to support hold.
+        #[arg(long, default_value_t = Hold(true))]
+        hold: Hold,
     },
 
     Render {
@@ -485,6 +526,116 @@ pub fn main() {
                 let p = n as f64 / d as f64;
                 let mp = minimum_precision(d) - 2;
                 println!("{piece}: {n}/{d} ({:.mp$}%)", p * 100.0);
+            }
+        }
+
+        Command::Score {
+            pattern,
+            field,
+            save,
+            hold,
+        } => {
+            let board = parse_board(field.as_deref());
+
+            let queues = pattern.expand();
+            let total = queues.len();
+
+            let results: Vec<_> = queues
+                .par_iter()
+                .map(|queue| best(board, queue.as_slice(), false, save, *hold))
+                .collect();
+
+            let mut solved = 0usize;
+            let mut score_sum: u64 = 0;
+            let mut groups: std::collections::BTreeMap<(String, u32), usize> =
+                std::collections::BTreeMap::new();
+
+            for res in results {
+                match res {
+                    Some(r) => {
+                        solved += 1;
+                        score_sum += u64::from(r.score);
+                        let events = r
+                            .events
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        *groups.entry((events, r.score)).or_insert(0) += 1;
+                    }
+                    None => {
+                        *groups.entry((String::new(), 0)).or_insert(0) += 1;
+                    }
+                }
+            }
+
+            let mut rows: Vec<((String, u32), usize)> = groups.into_iter().collect();
+            rows.sort_by(|a, b| {
+                b.1.cmp(&a.1)
+                    .then(b.0.1.cmp(&a.0.1))
+                    .then(a.0.0.cmp(&b.0.0))
+            });
+
+            for ((events, score), count) in rows {
+                println!("{count}\t{score}\t{events}");
+            }
+
+            let average = if total == 0 {
+                0.0
+            } else {
+                score_sum as f64 / total as f64
+            };
+            eprintln!("{average} ({solved}/{total})");
+        }
+
+        Command::Scoring {
+            pattern: queue,
+            field,
+            save,
+            hold,
+        } => {
+            let board = parse_board(field.as_deref());
+
+            if let Some(res) = best(board, queue.as_slice(), false, save, *hold) {
+                let mut b = Board::empty();
+                let mut f = Fumen::default();
+                let mut lc = 0;
+                for &m in &res.moves {
+                    let page = f.add_page();
+                    page.piece = Some(fumen::Piece {
+                        kind: match m.piece() {
+                            Piece::I => fumen::PieceType::I,
+                            Piece::O => fumen::PieceType::O,
+                            Piece::T => fumen::PieceType::T,
+                            Piece::L => fumen::PieceType::L,
+                            Piece::J => fumen::PieceType::J,
+                            Piece::S => fumen::PieceType::S,
+                            Piece::Z => fumen::PieceType::Z,
+                        },
+                        rotation: match m.rotation() {
+                            Rotation::North => fumen::RotationState::North,
+                            Rotation::East => fumen::RotationState::East,
+                            Rotation::South => fumen::RotationState::South,
+                            Rotation::West => fumen::RotationState::West,
+                        },
+                        x: m.x() as u32,
+                        y: m.y() as u32 - lc as u32,
+                    });
+                    b |= m.mask();
+                    b = b.clearshift();
+                    lc = b.line_clears();
+                }
+                let fumen_str = unglue(&f.encode()).unwrap_or_else(|_| f.encode());
+
+                println!("{}", res.score);
+                println!("{fumen_str} {}", f.encode());
+                println!(
+                    "{}",
+                    res.events.iter().map(ToString::to_string).join(", ")
+                );
+            } else {
+                eprintln!("error: no solution");
+                std::process::exit(1);
             }
         }
     }

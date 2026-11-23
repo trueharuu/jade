@@ -88,7 +88,7 @@ impl Display for Event {
         };
         write!(
             f,
-            "{}{spin}{base}{}",
+            "{}{spin}{base}{}{}",
             if self.b2b { "B2B " } else { "" },
             if let Some(combo) = self.combo
                 && let 1.. = combo
@@ -96,7 +96,8 @@ impl Display for Event {
                 format!("+{combo}")
             } else {
                 String::new()
-            }
+            },
+            if self.pc { " PC" } else { "" }
         )
     }
 }

@@ -1,5 +1,5 @@
 use jade_core::{board::Board, piece::Piece, render};
-use jade_nav::{fast, oracle};
+use jade_nav::fast;
 
 pub fn main() {
     let mut b = Board::empty();

@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn queue_line() {
         let row = Row::parse("TIJL,true");
-        assert_eq!(row.recorded, true);
+        assert!(row.recorded);
         assert_eq!(
             row.queue.unwrap().as_slice(),
             &[Piece::T, Piece::I, Piece::J, Piece::L][..]

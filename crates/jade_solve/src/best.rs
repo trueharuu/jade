@@ -4,12 +4,18 @@
 //! perfect-clear solution, scores each one, and keeps the highest-scoring
 //! move sequence together with its scoring events.
 
+use std::cell::Cell;
+use std::cell::RefCell;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::score::Event;
 use jade_core::score::Spin;
 
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use crate::moves::moves;
@@ -24,7 +30,7 @@ use crate::saves::save_ok;
 /// The highest-scoring solution found by [`best`].
 #[derive(Debug, Clone)]
 pub struct BestResult {
-    /// The move sequence, in placement order.
+    /// The move sequence, in placement order. Empty for score-only searches.
     pub moves: Vec<Move>,
     /// The scoring event for each move, in the same order.
     pub events: Vec<Event>,
@@ -42,11 +48,22 @@ struct ScoreState {
 struct Ctx {
     two_l: bool,
     saves: Saves,
+    suffix_codes: Vec<(u64, u8)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct StateKey {
+    board: u64,
+    queue_code: u64,
+    queue_len: u8,
+    hold: u8,
+    b2b: bool,
+    combo: Option<u32>,
 }
 
 #[derive(Default)]
 struct Memo {
-    dead: FxHashSet<(u64, u64)>,
+    dead: FxHashSet<StateKey>,
 }
 
 struct Best {
@@ -56,7 +73,18 @@ struct Best {
     events: Vec<Event>,
 }
 
-const MAX_EVENT_SCORE: u32 = 10000;
+thread_local! {
+    static TLS_MEMO: RefCell<Memo> = RefCell::new(Memo::default());
+    static TLS_GEN: Cell<u64> = const { Cell::new(0) };
+}
+
+static BATCH_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Starts a new shared-memo batch. Call once before a batch of `best_shared`
+/// calls.
+pub fn best_batch_start() {
+    BATCH_GEN.fetch_add(1, Ordering::SeqCst);
+}
 
 /// Returns the single highest-scoring perfect-clear path for `board` and
 /// `queue`, or `None` when no solution exists.
@@ -68,14 +96,77 @@ pub fn best(
     saves: Saves,
     hold_enabled: bool,
 ) -> Option<BestResult> {
+    let mut memo = Memo::default();
+    best_inner::<true>(board, queue, two_l, saves, hold_enabled, &mut memo)
+}
+
+/// Score-only variant. It skips move tracking and is faster for callers that
+/// only need events and score.
+#[must_use]
+pub fn best_score(
+    board: Board,
+    queue: &[Piece],
+    two_l: bool,
+    saves: Saves,
+    hold_enabled: bool,
+) -> Option<BestResult> {
+    let mut memo = Memo::default();
+    best_inner::<false>(board, queue, two_l, saves, hold_enabled, &mut memo)
+}
+
+/// Score-only variant that uses the thread-local shared memo of the current
+/// batch.
+#[must_use]
+pub fn best_score_shared(
+    board: Board,
+    queue: &[Piece],
+    two_l: bool,
+    saves: Saves,
+    hold_enabled: bool,
+) -> Option<BestResult> {
+    let generation = BATCH_GEN.load(Ordering::SeqCst);
+    TLS_GEN.with(|g| {
+        if g.get() != generation {
+            g.set(generation);
+            TLS_MEMO.with(|m| *m.borrow_mut() = Memo::default());
+        }
+    });
+    TLS_MEMO.with(|m| {
+        let mut memo = m.borrow_mut();
+        best_inner::<false>(board, queue, two_l, saves, hold_enabled, &mut memo)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn best_inner<const TRACK: bool>(
+    board: Board,
+    queue: &[Piece],
+    two_l: bool,
+    saves: Saves,
+    hold_enabled: bool,
+    memo: &mut Memo,
+) -> Option<BestResult> {
     let board = board.clearshift();
     let cells = board.popcount();
     if !cells.is_multiple_of(4) || cells > 40 {
         return None;
     }
 
-    let ctx = Ctx { two_l, saves };
-    let mut memo = Memo::default();
+    // Precompute the code and length of the remaining queue at every depth.
+    let mut suffix_codes = Vec::with_capacity(queue.len() + 1);
+    for depth in 0..=queue.len() {
+        let mut code = 0u64;
+        for &p in &queue[depth..] {
+            code = (code << 3) | p as u64;
+        }
+        suffix_codes.push((code, (queue.len() - depth) as u8));
+    }
+
+    let ctx = Ctx {
+        two_l,
+        saves,
+        suffix_codes,
+    };
     let mut best = Best {
         found: false,
         score: 0,
@@ -84,10 +175,12 @@ pub fn best(
     };
     let mut path: Vec<Move> = Vec::new();
     let mut events: Vec<Event> = Vec::new();
+    let mut best_acc = FxHashMap::default();
 
-    search(
+    search::<TRACK>(
         &ctx,
-        &mut memo,
+        memo,
+        &mut best_acc,
         board,
         None,
         0,
@@ -113,19 +206,45 @@ pub fn best(
     })
 }
 
-fn memo_key(board: Board, depth: usize, hold: Option<Piece>) -> (u64, u64) {
-    let hold_code = hold.map_or(0u64, |p| p as u64 + 1);
-    (board.0, (depth as u64) << 4 | hold_code)
+fn memo_key(
+    ctx: &Ctx,
+    board: Board,
+    depth: usize,
+    hold: Option<Piece>,
+    state: ScoreState,
+) -> StateKey {
+    let (code, len) = ctx.suffix_codes[depth];
+    StateKey {
+        board: board.0,
+        queue_code: code,
+        queue_len: len,
+        hold: hold.map_or(0, |p| p as u8 + 1),
+        b2b: state.b2b,
+        combo: state.combo,
+    }
 }
 
-fn is_goal_board(board: Board, two_l: bool) -> bool {
-    board == PC_4 || (two_l && board == PC_2)
+fn remaining_bound(cells: u32, combo: Option<u32>) -> u32 {
+    if cells >= 40 {
+        return 0;
+    }
+    let r = (40 - cells) / 4;
+    if r == 0 {
+        return 0;
+    }
+    let next_combo = u64::from(combo.map_or(0, |c| c + 1));
+    let combo_sum = u64::from(r) * next_combo + (u64::from(r) * (u64::from(r) - 1)) / 2;
+    let combo_score = 50 * combo_sum;
+    let base_score = 3000 * u64::from(r);
+    let pc_bonus = 3000u64;
+    (base_score + combo_score + pc_bonus) as u32
 }
 
 #[allow(clippy::too_many_arguments)]
-fn search(
+fn search<const TRACK: bool>(
     ctx: &Ctx,
     memo: &mut Memo,
+    best_acc: &mut FxHashMap<StateKey, u32>,
     board: Board,
     hold: Option<Piece>,
     depth: usize,
@@ -139,13 +258,15 @@ fn search(
 ) -> bool {
     let hold = if hold_enabled { hold } else { None };
 
-    if is_goal_board(board, ctx.two_l)
-        && save_ok(ctx.saves, hold, queue.get(depth).copied())
-    {
+    if is_goal_board(board, ctx.two_l) && save_ok(ctx.saves, hold, queue.get(depth).copied()) {
         if !best.found || acc > best.score {
             best.found = true;
             best.score = acc;
-            best.moves = path.clone();
+            if TRACK {
+                best.moves = path.clone();
+            } else {
+                best.moves.clear();
+            }
             best.events = events.clone();
         }
         return true;
@@ -159,14 +280,21 @@ fn search(
         return false;
     }
 
-    let key = memo_key(board, depth, hold);
+    let key = memo_key(ctx, board, depth, hold, state);
     if memo.dead.contains(&key) {
         return false;
     }
+    if let Some(prev) = best_acc.get(&key)
+        && acc <= *prev
+    {
+        return false;
+    }
+
+    best_acc.insert(key, acc);
 
     if best.found {
-        let remaining = (40 - cells) / 4;
-        if acc + remaining * MAX_EVENT_SCORE <= best.score {
+        let bound = remaining_bound(cells, state.combo);
+        if acc + bound <= best.score {
             return false;
         }
     }
@@ -175,9 +303,10 @@ fn search(
     let mut reachable = false;
 
     if let Some(piece) = active {
-        reachable |= place(
+        reachable |= place::<TRACK>(
             ctx,
             memo,
+            best_acc,
             board,
             cells,
             piece,
@@ -195,9 +324,10 @@ fn search(
         if hold_enabled {
             match hold {
                 Some(h) if h != piece => {
-                    reachable |= place(
+                    reachable |= place::<TRACK>(
                         ctx,
                         memo,
+                        best_acc,
                         board,
                         cells,
                         h,
@@ -213,9 +343,10 @@ fn search(
                     );
                 }
                 None if depth + 1 < queue.len() => {
-                    reachable |= place(
+                    reachable |= place::<TRACK>(
                         ctx,
                         memo,
+                        best_acc,
                         board,
                         cells,
                         queue[depth + 1],
@@ -234,9 +365,10 @@ fn search(
             }
         }
     } else if let Some(piece) = hold {
-        reachable |= place(
+        reachable |= place::<TRACK>(
             ctx,
             memo,
+            best_acc,
             board,
             cells,
             piece,
@@ -259,9 +391,10 @@ fn search(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn place(
+fn place<const TRACK: bool>(
     ctx: &Ctx,
     memo: &mut Memo,
+    best_acc: &mut FxHashMap<StateKey, u32>,
     board: Board,
     cells: u32,
     piece: Piece,
@@ -280,11 +413,7 @@ fn place(
     let k = pieces_to_goal(cells_after, ctx.two_l);
     let extra = usize::from(!ctx.saves.is_empty() && hold_after.is_none());
     let in_hold = usize::from(hold_after.is_some());
-    let can_continue = queue
-        .len()
-        .saturating_sub(depth_after)
-        + in_hold
-        >= k + extra;
+    let can_continue = queue.len().saturating_sub(depth_after) + in_hold >= k + extra;
     let goal_possible = (cells_after == 40
         && save_ok(ctx.saves, hold_after, queue.get(depth_after).copied()))
         || (ctx.two_l
@@ -296,11 +425,15 @@ fn place(
     }
 
     let mut reachable = false;
-    for m in &moves(board, piece) {
+    let moves_list = moves(board, piece);
+
+    // Collect valid candidates first so they can be tried in descending score
+    // order. This improves branch-and-bound effectiveness.
+    let mut candidates: Vec<(Move, Board, Event, ScoreState, u32)> = Vec::new();
+    for m in &moves_list {
         let mut next = board;
         next |= m.mask();
-        let lines = (next.line_clears() as u32)
-            .saturating_sub(board.line_clears() as u32);
+        let lines = (next.line_clears() as u32).saturating_sub(board.line_clears() as u32);
         next = next.clearshift();
 
         if outside_playfield(next) {
@@ -312,9 +445,7 @@ fn place(
 
         if !can_continue {
             let next_goal = is_goal_board(next, ctx.two_l);
-            if !(next_goal
-                && save_ok(ctx.saves, hold_after, queue.get(depth_after).copied()))
-            {
+            if !(next_goal && save_ok(ctx.saves, hold_after, queue.get(depth_after).copied())) {
                 continue;
             }
         }
@@ -340,19 +471,24 @@ fn place(
         };
         let event_score = event.score();
         let new_state = ScoreState {
-            b2b: if lines > 0 {
-                difficult
-            } else {
-                state.b2b
-            },
+            b2b: if lines > 0 { difficult } else { state.b2b },
             combo: combo_val,
         };
 
-        path.push(m);
+        candidates.push((m, next, event, new_state, event_score));
+    }
+
+    candidates.sort_by_key(|a| std::cmp::Reverse(a.4));
+
+    for (m, next, event, new_state, event_score) in candidates {
+        if TRACK {
+            path.push(m);
+        }
         events.push(event);
-        if search(
+        if search::<TRACK>(
             ctx,
             memo,
+            best_acc,
             next,
             hold_after,
             depth_after,
@@ -367,8 +503,14 @@ fn place(
             reachable = true;
         }
         events.pop();
-        path.pop();
+        if TRACK {
+            path.pop();
+        }
     }
 
     reachable
+}
+
+fn is_goal_board(board: Board, two_l: bool) -> bool {
+    board == PC_4 || (two_l && board == PC_2)
 }

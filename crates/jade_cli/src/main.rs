@@ -13,10 +13,20 @@ use itertools::Itertools;
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::queue::Queue;
+use jade_core::render::BAR;
+use jade_core::render::BOTTOM_LEFT;
+use jade_core::render::BOTTOM_RIGHT;
+use jade_core::render::CELL;
+use jade_core::render::EMPTY;
+use jade_core::render::LINE;
+use jade_core::render::TOP_LEFT;
+use jade_core::render::TOP_RIGHT;
+use jade_core::render::cell;
 use jade_core::rotation::Rotation;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
 use jade_solve::best::best;
+use jade_solve::best::best_score;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
@@ -233,6 +243,7 @@ impl Deref for Hold {
     }
 }
 
+#[must_use]
 pub fn letterize(x: usize) -> String {
     // returns `x` as a base-26 string with 'A' as 0, 'B' as 1, ..., 'Z' as 25,
     // 'AA' as 26, etc.
@@ -260,14 +271,13 @@ pub fn main() {
                 for (j, page) in f.pages.iter().enumerate() {
                     println!("{}{}:", i + 1, letterize(j));
 
-                    use jade_core::render::*;
                     println!("{TOP_LEFT}{}{TOP_RIGHT}", LINE.repeat(10));
                     for y in (0..6).rev() {
                         print!("{BAR}");
-                        for x in 0..10 {
+                        for x in page.field[y] {
                             print!(
                                 "{}",
-                                match page.field[y][x] {
+                                match x {
                                     fumen::CellColor::Empty => EMPTY.to_string(),
                                     fumen::CellColor::I => cell(Piece::I, EMPTY),
                                     fumen::CellColor::O => cell(Piece::O, EMPTY),
@@ -355,7 +365,7 @@ pub fn main() {
                 std::process::exit(2);
             }
 
-            let ss = setups(pattern.clone(), n, *hold);
+            let ss = setups(&pattern.clone(), n, *hold);
 
             eprintln!(
                 "{} ({})",
@@ -500,7 +510,7 @@ pub fn main() {
 
                     f.encode()
                 })
-                .map(|x| unglue(&x).unwrap().to_string())
+                .map(|x| unglue(&x).unwrap().clone())
                 .collect::<BTreeSet<_>>()
                 .iter()
                 .for_each(|x| println!("{x}"));
@@ -542,7 +552,7 @@ pub fn main() {
 
             let results: Vec<_> = queues
                 .par_iter()
-                .map(|queue| best(board, queue.as_slice(), false, save, *hold))
+                .map(|queue| best_score(board, queue.as_slice(), false, save, *hold))
                 .collect();
 
             let mut solved = 0usize;
@@ -571,8 +581,9 @@ pub fn main() {
 
             let mut rows: Vec<((String, u32), usize)> = groups.into_iter().collect();
             rows.sort_by(|a, b| {
-                b.1.cmp(&a.1)
-                    .then(b.0.1.cmp(&a.0.1))
+                b.0.1
+                    .cmp(&a.0.1)
+                    .then(b.1.cmp(&a.1))
                     .then(a.0.0.cmp(&b.0.0))
             });
 
@@ -629,10 +640,7 @@ pub fn main() {
 
                 println!("{}", res.score);
                 println!("{fumen_str} {}", f.encode());
-                println!(
-                    "{}",
-                    res.events.iter().map(ToString::to_string).join(", ")
-                );
+                println!("{}", res.events.iter().map(ToString::to_string).join(", "));
             } else {
                 eprintln!("error: no solution");
                 std::process::exit(1);

@@ -125,8 +125,8 @@ where
 
 /// Decodes a queue key into pieces.
 fn decode(code: u64, n: usize, buf: &mut [Piece; 12]) -> &[Piece] {
-    for i in 0..n {
-        buf[i] = piece_from_index(((code >> (3 * (n - 1 - i))) & 7) as u8);
+    for (i, x) in buf.iter_mut().take(n).enumerate() {
+        *x = piece_from_index(((code >> (3 * (n - 1 - i))) & 7) as u8);
     }
     &buf[..n]
 }

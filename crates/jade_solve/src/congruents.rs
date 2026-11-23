@@ -184,8 +184,8 @@ pub fn congruents(target: Board, queues: &[Queue], hold: bool) -> Vec<Vec<Move>>
 /// A key of all `T` bits decodes the same at several lengths, so the length
 /// is the caller's to keep. The caller must pass the same `n` it packed with.
 fn decode(code: u64, n: usize, buf: &mut [Piece; DECODE_BUF]) -> &[Piece] {
-    for i in 0..n {
-        buf[i] = piece_from_index(((code >> (PIECE_BITS * (n - 1 - i) as u32)) & 7) as u8);
+    for (i, x) in buf.iter_mut().take(n).enumerate() {
+        *x = piece_from_index(((code >> (PIECE_BITS * (n - 1 - i) as u32)) & 7) as u8);
     }
     &buf[..n]
 }

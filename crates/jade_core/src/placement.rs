@@ -53,13 +53,13 @@ impl Move {
     #[inline]
     #[must_use]
     pub const fn new(piece: Piece, x: i32, y: i32, rotation: Rotation, spin: Spin) -> Self {
-        let p = piece as u32;
+        let p_t = piece as u32;
         let r = rotation as u32;
         let x = x as u32;
         let y = y as u32;
         let s = spin as u32;
         Self(
-            (p & PIECE_MASK) << PIECE_SHIFT
+            (p_t & PIECE_MASK) << PIECE_SHIFT
                 | (x & X_MASK) << X_SHIFT
                 | (y & Y_MASK) << Y_SHIFT
                 | (r & ROT_MASK) << ROT_SHIFT

@@ -31,7 +31,7 @@ const LEN_SHIFT: u32 = 33;
 /// Returns an empty list if `n` is 0 or more than 10, or if no queue can build
 /// an `n`-piece setup (for example, `n` is below the length of the left
 /// pattern).
-pub fn setups(pattern: DisjointPattern, n: usize, hold: bool) -> BTreeMap<Queue, Vec<Board>> {
+pub fn setups(pattern: &DisjointPattern, n: usize, hold: bool) -> BTreeMap<Queue, Vec<Board>> {
     if n == 0 || n > 10 {
         return BTreeMap::new();
     }
@@ -39,7 +39,7 @@ pub fn setups(pattern: DisjointPattern, n: usize, hold: bool) -> BTreeMap<Queue,
     // Every placement order, with the multiset key of its pieces. One sort
     // gives both the groups and the sorted codes inside each group.
     let mut pairs: Vec<(u64, u64)> = Vec::new();
-    for (queue, split) in prefixes(&pattern, n) {
+    for (queue, split) in prefixes(pattern, n) {
         schedules(
             queue,
             hold,

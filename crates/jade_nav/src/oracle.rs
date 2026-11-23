@@ -52,10 +52,10 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
         }
 
         {
-            let spin = if drop_y != y {
-                Spin::None
-            } else {
+            let spin = if drop_y == y {
                 ghost.spin()
+            } else {
+                Spin::None
             };
             let dropped_ghost = Move::new(P, x, drop_y, ghost.rotation(), spin);
             let c = dropped_ghost.canonicalize();

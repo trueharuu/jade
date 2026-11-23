@@ -36,8 +36,8 @@ pub fn main() {
     for i in 0..=4 {
         for missing in Pattern::parse(&format!("*c{i}")).unwrap().expand() {
             for (name, setup) in base {
-                let mut f = Fumen::decode(setup).unwrap();
-                for row in &mut f.pages[0].field {
+                let mut fu = Fumen::decode(setup).unwrap();
+                for row in &mut fu.pages[0].field {
                     for col in row {
                         let p = match col {
                             CellColor::T => Piece::T,
@@ -56,7 +56,7 @@ pub fn main() {
                     }
                 }
 
-                let u = f.encode();
+                let u = fu.encode();
 
                 let sol = Pattern::parse(&if missing.is_empty() {
                     "*p4".into()

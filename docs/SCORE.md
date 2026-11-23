@@ -103,3 +103,15 @@ Make the `score` command accept a pattern that expands to any number of queues. 
 5. Group, sort, and print rows.
 6. Compute and print statistics to stderr.
 7. Build and run smoke tests.
+
+## Performance Improvements
+
+The implementation now includes:
+
+1. Per-state memoization of the best accumulated score, in addition to dead states.
+2. A tighter branch-and-bound bound based on the remaining placement count.
+3. Move ordering by descending immediate event score.
+4. A shared thread-local memo for batched score-only searches.
+5. A score-only search path that avoids move tracking.
+
+These changes preserve correctness because all pruning uses dominance or upper bounds.

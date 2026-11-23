@@ -155,9 +155,9 @@ pub fn apply_rotation<const P: Piece>(
     };
 
     let lane = kt[mv.rotation() as usize][target as usize];
-    for kick_idx in 0..lane.1 {
-        let dx = i32::from(lane.0[kick_idx].0);
-        let dy = i32::from(lane.0[kick_idx].1);
+    for (kick_idx, t) in lane.0.iter().enumerate() {
+        let dx = i32::from(t.0);
+        let dy = i32::from(t.1);
         let new_x = mv.x() + dx;
         let new_y = mv.y() + dy;
         if check::<P>(usable, new_x, new_y, target as usize) {

@@ -91,10 +91,10 @@ fn tree_imperfect(
     threads: usize,
 ) -> Option<Decision> {
     if depth >= cutoffs.len().saturating_sub(1) {
-        let (cost, steps) = score_suffix(field, *queue, two_l, saves, hold_enabled);
+        let (cost, steps, events) = score_suffix(field, *queue, two_l, saves, hold_enabled);
         return Some(match steps {
-            Some(steps) => Decision::solve(cost, 0, steps),
-            None => Decision::capped(cost, 0),
+            Some(steps) => Decision::solve(cost, 0, 1, steps, events),
+            None => Decision::capped(cost, 0, 1),
         });
     }
     if bag.is_empty() {
@@ -150,7 +150,7 @@ fn tree_after_front(
     root_job: Option<usize>,
     first_zero: &AtomicUsize,
 ) -> Option<Decision> {
-    let mut best = Decision::capped(0, cutoffs[depth]);
+    let mut best = Decision::capped(0, cutoffs[depth], cutoffs[depth]);
 
     for mv in &moves(field, front) {
         let mut next = field;
@@ -200,7 +200,7 @@ fn tree_action(
     root_job: Option<usize>,
     first_zero: &AtomicUsize,
 ) -> Option<Decision> {
-    let mut decision = Decision::branch(next_field, placed_piece, mv, cutoffs[depth]);
+    let mut decision = Decision::branch(next_field, placed_piece, mv, cutoffs[depth], cutoffs[depth]);
     for piece in bag.pieces() {
         queue.push_back(piece);
         let child = tree_imperfect(
@@ -252,12 +252,12 @@ fn tree_root_parallel(
     }
 
     if jobs.is_empty() {
-        return Decision::capped(0, cutoffs[0]);
+        return Decision::capped(0, cutoffs[0], cutoffs[0]);
     }
 
     let next_job = AtomicUsize::new(0);
     let best = Mutex::new(RootBest {
-        decision: Decision::capped(0, cutoffs[0]),
+        decision: Decision::capped(0, cutoffs[0], cutoffs[0]),
         job: usize::MAX,
     });
     let workers = threads.min(jobs.len());
@@ -323,7 +323,7 @@ fn tree_root_job(
     hold_enabled: bool,
 ) -> Option<Decision> {
     let mut queue = *queue;
-    let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0]);
+    let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0], cutoffs[0]);
 
     for piece in bag.pieces() {
         queue.push_back(piece);

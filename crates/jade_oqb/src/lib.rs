@@ -8,6 +8,7 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
+use jade_core::score::Event;
 
 use jade_solve::best::best;
 use jade_solve::saves::Saves;
@@ -17,6 +18,7 @@ use crate::search::DecisionSearch;
 pub struct Decision {
     cost: u64,
     cap: u64,
+    leaves: u64,
     kind: DecisionKind,
 }
 
@@ -30,6 +32,7 @@ pub enum DecisionKind {
 
     Solve {
         steps: Vec<Move>,
+        events: Vec<Event>,
     },
 
     Capped,
@@ -50,20 +53,28 @@ impl Decision {
 
     #[inline]
     #[must_use]
-    pub const fn capped(cost: u64, cap: u64) -> Self {
+    pub const fn leaves(&self) -> u64 {
+        self.leaves
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn capped(cost: u64, cap: u64, leaves: u64) -> Self {
         Self {
             cost,
             cap,
+            leaves,
             kind: DecisionKind::Capped,
         }
     }
 
     #[inline]
     #[must_use]
-    pub fn branch(field: Board, piece: Piece, mv: Move, cap: u64) -> Self {
+    pub fn branch(field: Board, piece: Piece, mv: Move, cap: u64, leaves: u64) -> Self {
         Self {
             cost: 0,
             cap,
+            leaves,
             kind: DecisionKind::Branch {
                 field,
                 piece,
@@ -75,11 +86,12 @@ impl Decision {
 
     #[inline]
     #[must_use]
-    pub const fn solve(cost: u64, cap: u64, steps: Vec<Move>) -> Self {
+    pub fn solve(cost: u64, cap: u64, leaves: u64, steps: Vec<Move>, events: Vec<Event>) -> Self {
         Self {
             cost,
             cap,
-            kind: DecisionKind::Solve { steps },
+            leaves,
+            kind: DecisionKind::Solve { steps, events },
         }
     }
 
@@ -119,10 +131,10 @@ pub fn score_suffix(
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
-) -> (u64, Option<Vec<Move>>) {
+) -> (u64, Option<Vec<Move>>, Vec<Event>) {
     match best(field, queue.as_slice(), two_l, saves, hold_enabled) {
-        Some(result) => (u64::from(result.score), Some(result.moves)),
-        None => (0, None),
+        Some(result) => (u64::from(result.score), Some(result.moves), result.events),
+        None => (0, None, Vec::new()),
     }
 }
 

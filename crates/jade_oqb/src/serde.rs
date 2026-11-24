@@ -23,7 +23,7 @@ impl Decision {
                 children,
                 ..
             } => {
-                writeln!(output, "{}{}\t{}", pad, encode_placements(&field, &[*mv]), self.cost)?;
+                writeln!(output, "{}{}\t{}\t{}", pad, encode_placements(&field, &[*mv]), self.leaves(), self.cost)?;
                 for (index, child) in children.iter().enumerate() {
                     let Some(child) = child else {
                         continue;
@@ -34,11 +34,24 @@ impl Decision {
                     child.write_indented(output, indent + 1, *next)?;
                 }
             }
-            DecisionKind::Solve { steps } => {
-                writeln!(output, "{}{}\t{}", pad, encode_placements(&field, steps), self.cost)?;
+            DecisionKind::Solve { steps, events } => {
+                let events = events
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    output,
+                    "{}{}\t{}\t{}\t{}",
+                    pad,
+                    encode_placements(&field, steps),
+                    self.leaves(),
+                    self.cost,
+                    events
+                )?;
             }
             DecisionKind::Capped => {
-                writeln!(output, "{}\t\t{}", pad, self.cost)?;
+                writeln!(output, "{}\t{}\t{}", pad, self.leaves(), self.cost)?;
             }
         }
         Ok(())

@@ -1,5 +1,6 @@
 pub mod bag;
 pub mod search;
+pub mod decision;
 
 pub use bag::Bag;
 pub mod serde;
@@ -86,7 +87,7 @@ impl Decision {
 
     #[inline]
     #[must_use]
-    pub fn solve(cost: u64, cap: u64, leaves: u64, steps: Vec<Move>, events: Vec<Event>) -> Self {
+    pub const fn solve(cost: u64, cap: u64, leaves: u64, steps: Vec<Move>, events: Vec<Event>) -> Self {
         Self {
             cost,
             cap,

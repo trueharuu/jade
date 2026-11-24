@@ -642,7 +642,7 @@ pub fn main() {
                         y: (m.y() - cleared) as u32,
                     });
                     let lines_this = (b | m.mask()).line_clears()
-                        .saturating_sub(b.line_clears()) as i32;
+                        .saturating_sub(b.line_clears());
                     // apply placement for b tracking
                     b |= m.mask();
                     b = b.clearshift();

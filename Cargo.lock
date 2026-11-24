@@ -182,6 +182,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "jade_oqb"
+version = "0.1.0"
+dependencies = [
+ "jade_core",
+ "jade_solve",
+]
+
+[[package]]
 name = "jade_pattern"
 version = "0.1.0"
 dependencies = [

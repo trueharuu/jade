@@ -1,9 +1,5 @@
-use jade_core::board::Board;
 use jade_core::piece::Piece;
-use jade_core::placement::Move;
-use jade_core::queue::Queue;
 
-use crate::Saves;
 
 /// A set of hidden pieces, stored as one bit per piece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,42 +73,4 @@ impl Bag {
             }
         })
     }
-}
-
-pub struct Decision {
-    cost: u64,
-    cap: u64,
-    kind: DecisionKind,
-}
-
-pub enum DecisionKind {
-    Branch {
-        field: Board,
-        piece: Piece,
-        children: [Option<Box<Decision>>; Piece::NB],
-    },
-
-    Solve {
-        steps: Vec<Move>,
-    },
-
-    Capped,
-}
-
-#[must_use]
-pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
-    let count = (12 - placed as isize - see as isize).max(1) as usize;
-    let mut cutoffs = Vec::with_capacity(count);
-    *cutoffs.last_mut().unwrap() = 1u64;
-
-    for i in (0..count - 1).rev() {
-        let n = (bag.count() + 7 - i) % 7;
-        cutoffs[i] = cutoffs[i + 1] * if n == 0 { 7 } else { n as u64 };
-    }
-
-    cutoffs
-}
-
-pub fn oqb(field: Board, hold: Option<Piece>, queue: Queue, bag: Bag) -> Decision {
-    todo!();
 }

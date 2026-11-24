@@ -61,6 +61,49 @@ pub fn encode_fumen(board: &Board) -> String {
     f.encode()
 }
 
+#[must_use]
+pub fn encode_placements(b: &Board, m: &[Move]) -> String {
+    let mut board = *b;
+    let mut f = Fumen::default();
+    let mut lc = 0i32;
+    for (i, &mv) in m.iter().enumerate() {
+        let page = f.add_page();
+        if i == 0 {
+            for y in 0..4usize {
+                for x in 0..10usize {
+                    if b.get(x as i32, y as i32) {
+                        page.field[y][x] = CellColor::Grey;
+                    }
+                }
+            }
+        }
+        page.piece = Some(fumen::Piece {
+            kind: match mv.piece() {
+                Piece::I => fumen::PieceType::I,
+                Piece::O => fumen::PieceType::O,
+                Piece::T => fumen::PieceType::T,
+                Piece::L => fumen::PieceType::L,
+                Piece::J => fumen::PieceType::J,
+                Piece::S => fumen::PieceType::S,
+                Piece::Z => fumen::PieceType::Z,
+            },
+            rotation: match mv.rotation() {
+                Rotation::North => fumen::RotationState::North,
+                Rotation::East => fumen::RotationState::East,
+                Rotation::South => fumen::RotationState::South,
+                Rotation::West => fumen::RotationState::West,
+            },
+            x: mv.x() as u32,
+            y: (mv.y() - lc) as u32,
+        });
+        board |= mv.mask();
+        board = board.clearshift();
+        lc = board.line_clears();
+    }
+    // initial board grey cells on first page? Match congruents: no.
+    f.encode()
+}
+
 // Rust port of `Marfung37/GluingFumens` unglue method.
 //
 // A glued fumen holds one piece per page, and its field does not change from
@@ -76,6 +119,7 @@ use fumen::PieceType;
 
 use jade_core::data::CELLS;
 use jade_core::piece::Piece;
+use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
 
 const WIDTH: i32 = 10;

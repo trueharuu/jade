@@ -9,6 +9,7 @@ fumen = "0.1.2"
 itertools = "0.15.0"
 jade_core = { version = "0.1.0", path = "../jade_core" }
 jade_nav = { version = "0.1.0", path = "../jade_nav" }
+jade_oqb = { version = "0.1.0", path = "../jade_oqb" }
 jade_pattern = { version = "0.1.0", path = "../jade_pattern" }
 jade_solve = { version = "0.1.0", path = "../jade_solve" }
 rayon = "1.12.0"

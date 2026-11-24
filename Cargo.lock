@@ -165,6 +165,7 @@ dependencies = [
  "itertools",
  "jade_core",
  "jade_nav",
+ "jade_oqb",
  "jade_pattern",
  "jade_solve",
  "rayon",

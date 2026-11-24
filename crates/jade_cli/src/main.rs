@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Display;
 
+use jade_oqb::bag::Bag;
 use rayon::prelude::*;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -192,6 +193,16 @@ pub enum Command {
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
         hold: Hold,
+    },
+
+    Tree {
+        #[arg(short, long)]
+        pattern: Queue,
+        #[arg(short, long)]
+        bag: Bag,
+        /// Starting field.
+        #[arg(short, long)]
+        field: Option<String>,
     },
 
     Render {
@@ -641,8 +652,7 @@ pub fn main() {
                         x: m.x() as u32,
                         y: (m.y() - cleared) as u32,
                     });
-                    let lines_this = (b | m.mask()).line_clears()
-                        .saturating_sub(b.line_clears());
+                    let lines_this = (b | m.mask()).line_clears().saturating_sub(b.line_clears());
                     // apply placement for b tracking
                     b |= m.mask();
                     b = b.clearshift();
@@ -657,6 +667,12 @@ pub fn main() {
                 eprintln!("error: no solution");
                 std::process::exit(1);
             }
+        }
+
+        Command::Tree { pattern: queue, bag, field } => {
+            let field = parse_board(field.as_deref());
+            let tree = jade_oqb::oqb(field, queue, bag);
+            println!("{}", tree.to_indented_string(field));
         }
     }
 }

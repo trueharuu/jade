@@ -1,5 +1,8 @@
 pub mod bag;
-pub mod value;
+pub mod search;
+
+pub use bag::Bag;
+pub mod serde;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
@@ -8,22 +11,21 @@ use jade_core::queue::Queue;
 
 use jade_solve::best::best;
 use jade_solve::saves::Saves;
-use jade_solve::solve::reachable;
 
-use crate::bag::Bag;
-use crate::value::Value;
+use crate::search::DecisionSearch;
 
-pub struct Decision<V: Value> {
-    cost: V,
-    cap: V,
-    kind: DecisionKind<V>,
+pub struct Decision {
+    cost: u64,
+    cap: u64,
+    kind: DecisionKind,
 }
 
-pub enum DecisionKind<V: Value> {
+pub enum DecisionKind {
     Branch {
         field: Board,
         piece: Piece,
-        children: [Option<Box<Decision<V>>>; Piece::NB],
+        mv: Move,
+        children: [Option<Box<Decision>>; Piece::NB],
     },
 
     Solve {
@@ -33,19 +35,22 @@ pub enum DecisionKind<V: Value> {
     Capped,
 }
 
-impl<V: Value> Decision<V> {
+impl Decision {
     #[inline]
-    pub const fn cost(&self) -> V {
+    #[must_use]
+    pub const fn cost(&self) -> u64 {
         self.cost
     }
 
     #[inline]
-    pub const fn cap(&self) -> V {
+    #[must_use]
+    pub const fn cap(&self) -> u64 {
         self.cap
     }
 
     #[inline]
-    pub const fn capped(cost: V, cap: V) -> Self {
+    #[must_use]
+    pub const fn capped(cost: u64, cap: u64) -> Self {
         Self {
             cost,
             cap,
@@ -54,20 +59,23 @@ impl<V: Value> Decision<V> {
     }
 
     #[inline]
-    pub fn branch(field: Board, piece: Piece, cap: V) -> Self {
+    #[must_use]
+    pub fn branch(field: Board, piece: Piece, mv: Move, cap: u64) -> Self {
         Self {
-            cost: V::zero(),
+            cost: 0,
             cap,
             kind: DecisionKind::Branch {
                 field,
                 piece,
+                mv,
                 children: core::array::from_fn(|_| None),
             },
         }
     }
 
     #[inline]
-    pub const fn solve(cost: V, cap: V, steps: Vec<Move>) -> Self {
+    #[must_use]
+    pub const fn solve(cost: u64, cap: u64, steps: Vec<Move>) -> Self {
         Self {
             cost,
             cap,
@@ -75,23 +83,27 @@ impl<V: Value> Decision<V> {
         }
     }
 
-    pub fn set_child(&mut self, piece: Piece, child: Decision<V>) {
+    pub fn set_child(&mut self, piece: Piece, child: Decision) {
         let DecisionKind::Branch { children, .. } = &mut self.kind else {
             unreachable!("children are only valid on branch decisions");
         };
         children[piece as usize] = Some(Box::new(child));
     }
+
+    pub const fn set_cost(&mut self, cost: u64) {
+        self.cost = cost;
+    }
 }
 
 #[must_use]
-pub fn cutoffs<V: Value>(placed: usize, see: usize, bag: Bag) -> Vec<V> {
+pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
     let count = (12 - placed as isize - see as isize).max(1) as usize;
-    let mut cutoffs = vec![V::zero(); count];
-    *cutoffs.last_mut().expect("at least one cutoff") = V::one();
+    let mut cutoffs = vec![0u64; count];
+    *cutoffs.last_mut().expect("at least one cutoff") = 1;
 
     for i in (0..count - 1).rev() {
         let n = (bag.count() + 7 - i) % 7;
-        cutoffs[i] = cutoffs[i + 1].mul_small(if n == 0 { 7 } else { n });
+        cutoffs[i] = cutoffs[i + 1] * if n == 0 { 7 } else { n as u64 };
     }
 
     cutoffs
@@ -99,25 +111,26 @@ pub fn cutoffs<V: Value>(placed: usize, see: usize, bag: Bag) -> Vec<V> {
 
 /// Evaluates a fully known suffix.
 ///
-/// Returns `(0, Some(moves))` when a perfect clear exists, and `(1, None)`
-/// otherwise.
+/// Returns the best score and one move sequence that achieves it.
 #[must_use]
-pub fn solve_suffix(
+pub fn score_suffix(
     field: Board,
-    _hold: Option<Piece>,
     queue: Queue,
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
 ) -> (u64, Option<Vec<Move>>) {
-    if !reachable(field, queue.as_slice(), two_l, saves, hold_enabled) {
-        return (1, None);
+    match best(field, queue.as_slice(), two_l, saves, hold_enabled) {
+        Some(result) => (u64::from(result.score), Some(result.moves)),
+        None => (0, None),
     }
-    let result = best(field, queue.as_slice(), two_l, saves, hold_enabled).unwrap();
-    (0, Some(result.moves))
 }
 
 #[must_use]
-pub fn oqb(_field: Board, _hold: Option<Piece>, _queue: Queue, _bag: Bag) -> Decision<u64> {
-    todo!()
+pub fn oqb(field: Board, queue: Queue, bag: Bag) -> Decision {
+    let placed = field.popcount() as usize / 4;
+    let see = queue.len();
+    let cutoffs = crate::cutoffs(placed, see, bag);
+    let search = DecisionSearch::new(false, Saves::empty(), true, 1);
+    search.solve(field, queue, bag, &cutoffs)
 }

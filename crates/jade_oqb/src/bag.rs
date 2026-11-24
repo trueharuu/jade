@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use jade_core::piece::Piece;
 
 
@@ -48,6 +50,13 @@ impl Bag {
         self.0 & (1 << (piece as u8)) != 0
     }
 
+    /// Returns a bag with `piece` added.
+    #[inline]
+    #[must_use]
+    pub const fn add(self, piece: Piece) -> Self {
+        Self(self.0 | (1 << (piece as u8)))
+    }
+
     /// Returns a bag without `piece`.
     #[inline]
     #[must_use]
@@ -72,5 +81,18 @@ impl Bag {
                 None
             }
         })
+    }
+}
+
+impl FromStr for Bag {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut bag = Bag::empty();
+        for c in s.chars() {
+            let piece = Piece::from_str(&c.to_string())?;
+            bag = bag.add(piece);
+        }
+        Ok(bag)
     }
 }

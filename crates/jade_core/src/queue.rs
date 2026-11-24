@@ -62,6 +62,57 @@ impl Queue {
         self.len += 1;
     }
 
+    /// Appends a piece to the back of the queue.
+    ///
+    /// This is an alias for [`Queue::push`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the queue already holds [`CAP`] pieces.
+    #[inline]
+    pub const fn push_back(&mut self, piece: Piece) {
+        self.push(piece);
+    }
+
+    /// Prepends a piece to the front of the queue.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the queue already holds [`CAP`] pieces.
+    #[inline]
+    pub const fn push_front(&mut self, piece: Piece) {
+        assert!(self.len as usize != CAP, "queue full");
+        let mut i = self.len as usize;
+        while i > 0 {
+            self.pieces[i] = self.pieces[i - 1];
+            i -= 1;
+        }
+        self.pieces[0] = piece;
+        self.len += 1;
+    }
+
+    /// Removes and discards the first piece of the queue.
+    #[inline]
+    pub const fn pop_front(&mut self) {
+        if self.len == 0 {
+            return;
+        }
+        let mut i = 1;
+        while i < self.len as usize {
+            self.pieces[i - 1] = self.pieces[i];
+            i += 1;
+        }
+        self.len -= 1;
+    }
+
+    /// Removes and discards the last piece of the queue.
+    #[inline]
+    pub const fn pop_back(&mut self) {
+        if self.len > 0 {
+            self.len -= 1;
+        }
+    }
+
     /// Shortens the queue to its first `n` pieces.
     #[inline]
     pub const fn truncate(&mut self, n: usize) {

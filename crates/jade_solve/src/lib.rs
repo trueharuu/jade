@@ -9,6 +9,7 @@ pub mod rules;
 pub mod saves;
 pub mod setup;
 pub mod solve;
+pub mod oqb;
 
 pub use best::BestResult;
 pub use best::best;

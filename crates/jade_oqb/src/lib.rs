@@ -139,10 +139,10 @@ pub fn score_suffix(
 }
 
 #[must_use]
-pub fn oqb(field: Board, queue: Queue, bag: Bag) -> Decision {
+pub fn oqb(field: Board, queue: Queue, bag: Bag, threads: usize) -> Decision {
     let placed = field.popcount() as usize / 4;
     let see = queue.len();
     let cutoffs = crate::cutoffs(placed, see, bag);
-    let search = DecisionSearch::new(false, Saves::empty(), true, 1);
+    let search = DecisionSearch::new(false, Saves::empty(), true, threads);
     search.solve(field, queue, bag, &cutoffs)
 }

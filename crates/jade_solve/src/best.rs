@@ -86,6 +86,32 @@ pub fn best_batch_start() {
     BATCH_GEN.fetch_add(1, Ordering::SeqCst);
 }
 
+/// Highest-scoring path with an initial hold piece and score state.
+#[must_use]
+pub fn best_with_state(
+    board: Board,
+    queue: &[Piece],
+    two_l: bool,
+    saves: Saves,
+    hold_enabled: bool,
+    initial_hold: Option<Piece>,
+    initial_b2b: bool,
+    initial_combo: Option<u32>,
+) -> Option<BestResult> {
+    let mut memo = Memo::default();
+    best_inner::<true>(
+        board,
+        queue,
+        two_l,
+        saves,
+        hold_enabled,
+        initial_hold,
+        initial_b2b,
+        initial_combo,
+        &mut memo,
+    )
+}
+
 /// Returns the single highest-scoring perfect-clear path for `board` and
 /// `queue`, or `None` when no solution exists.
 #[must_use]
@@ -97,7 +123,7 @@ pub fn best(
     hold_enabled: bool,
 ) -> Option<BestResult> {
     let mut memo = Memo::default();
-    best_inner::<true>(board, queue, two_l, saves, hold_enabled, &mut memo)
+    best_inner::<true>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
 }
 
 /// Score-only variant. It skips move tracking and is faster for callers that
@@ -111,7 +137,7 @@ pub fn best_score(
     hold_enabled: bool,
 ) -> Option<BestResult> {
     let mut memo = Memo::default();
-    best_inner::<false>(board, queue, two_l, saves, hold_enabled, &mut memo)
+    best_inner::<false>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
 }
 
 /// Score-only variant that uses the thread-local shared memo of the current
@@ -133,7 +159,7 @@ pub fn best_score_shared(
     });
     TLS_MEMO.with(|m| {
         let mut memo = m.borrow_mut();
-        best_inner::<false>(board, queue, two_l, saves, hold_enabled, &mut memo)
+        best_inner::<false>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
     })
 }
 
@@ -144,6 +170,9 @@ fn best_inner<const TRACK: bool>(
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
+    initial_hold: Option<Piece>,
+    initial_b2b: bool,
+    initial_combo: Option<u32>,
     memo: &mut Memo,
 ) -> Option<BestResult> {
     let board = board.clearshift();
@@ -182,15 +211,15 @@ fn best_inner<const TRACK: bool>(
         memo,
         &mut best_acc,
         board,
-        None,
+        initial_hold,
         0,
         queue,
         hold_enabled,
         &mut path,
         &mut events,
         ScoreState {
-            b2b: false,
-            combo: None,
+            b2b: initial_b2b,
+            combo: initial_combo,
         },
         0,
         &mut best,

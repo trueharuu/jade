@@ -15,98 +15,8 @@ use jade_solve::best::best;
 use jade_solve::saves::Saves;
 
 use crate::search::DecisionSearch;
-
-pub struct Decision {
-    cost: u64,
-    cap: u64,
-    leaves: u64,
-    kind: DecisionKind,
-}
-
-pub enum DecisionKind {
-    Branch {
-        field: Board,
-        piece: Piece,
-        mv: Move,
-        children: [Option<Box<Decision>>; Piece::NB],
-    },
-
-    Solve {
-        steps: Vec<Move>,
-        events: Vec<Event>,
-    },
-
-    Capped,
-}
-
-impl Decision {
-    #[inline]
-    #[must_use]
-    pub const fn cost(&self) -> u64 {
-        self.cost
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn cap(&self) -> u64 {
-        self.cap
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn leaves(&self) -> u64 {
-        self.leaves
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn capped(cost: u64, cap: u64, leaves: u64) -> Self {
-        Self {
-            cost,
-            cap,
-            leaves,
-            kind: DecisionKind::Capped,
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn branch(field: Board, piece: Piece, mv: Move, cap: u64, leaves: u64) -> Self {
-        Self {
-            cost: 0,
-            cap,
-            leaves,
-            kind: DecisionKind::Branch {
-                field,
-                piece,
-                mv,
-                children: core::array::from_fn(|_| None),
-            },
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn solve(cost: u64, cap: u64, leaves: u64, steps: Vec<Move>, events: Vec<Event>) -> Self {
-        Self {
-            cost,
-            cap,
-            leaves,
-            kind: DecisionKind::Solve { steps, events },
-        }
-    }
-
-    pub fn set_child(&mut self, piece: Piece, child: Decision) {
-        let DecisionKind::Branch { children, .. } = &mut self.kind else {
-            unreachable!("children are only valid on branch decisions");
-        };
-        children[piece as usize] = Some(Box::new(child));
-    }
-
-    pub const fn set_cost(&mut self, cost: u64) {
-        self.cost = cost;
-    }
-}
+use crate::decision::Decision;
+use crate::decision::DecisionKind;
 
 #[must_use]
 pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
@@ -132,9 +42,27 @@ pub fn score_suffix(
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
+    initial_hold: Option<Piece>,
+    initial_b2b: bool,
+    initial_combo: Option<u32>,
+    initial_events: Vec<Event>,
+    initial_acc: u64,
 ) -> (u64, Option<Vec<Move>>, Vec<Event>) {
-    match best(field, queue.as_slice(), two_l, saves, hold_enabled) {
-        Some(result) => (u64::from(result.score), Some(result.moves), result.events),
+    match jade_solve::best::best_with_state(
+        field,
+        queue.as_slice(),
+        two_l,
+        saves,
+        hold_enabled,
+        initial_hold,
+        initial_b2b,
+        initial_combo,
+    ) {
+        Some(result) => {
+            let mut events = initial_events;
+            events.extend(result.events);
+            (initial_acc + u64::from(result.score), Some(result.moves), events)
+        }
         None => (0, None, Vec::new()),
     }
 }

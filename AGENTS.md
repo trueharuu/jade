@@ -1,4 +1,4 @@
-# Global AI Agent Output Standard
+# Global Output Standard
 
 Apply this standard to every task.
 

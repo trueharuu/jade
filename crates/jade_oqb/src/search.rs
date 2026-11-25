@@ -332,7 +332,7 @@ impl SearchContext {
             jobs.push(RootJob {
                 field: next,
                 piece: front,
-                mv: mv,
+                mv,
                 state: new_state,
                 hold,
             });
@@ -352,7 +352,7 @@ impl SearchContext {
                         jobs.push(RootJob {
                             field: next,
                             piece: h,
-                            mv: mv,
+                            mv,
                             state: new_state,
                             hold: Some(front),
                         });
@@ -371,7 +371,7 @@ impl SearchContext {
                     jobs.push(RootJob {
                         field: next,
                         piece: next_piece,
-                        mv: mv,
+                        mv,
                         state: new_state,
                         hold: Some(front),
                     });

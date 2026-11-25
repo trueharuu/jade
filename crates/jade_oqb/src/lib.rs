@@ -48,16 +48,15 @@ pub fn score_suffix(
     initial_events: List<Event, CAP>,
     initial_acc: u64,
 ) -> (u64, Option<List<Move, CAP>>, List<Event, CAP>) {
-    let result = jade_solve::best::best_score_with_state(
-        field,
-        queue.as_slice(),
+    let opts = jade_score::Options {
         two_l,
         saves,
         hold_enabled,
         initial_hold,
         initial_b2b,
         initial_combo,
-    );
+    };
+    let result = opts.best(field, queue.as_slice());
     match result {
         Some(r) => (
             initial_acc + u64::from(r.score),
@@ -79,16 +78,15 @@ pub fn fill_moves(decision: &mut Decision, two_l: bool, saves: Saves, hold_enabl
             steps,
             events,
         } => {
-            if let Some(result) = jade_solve::best::best_with_state(
-                *field,
-                queue.as_slice(),
+            let opts = jade_score::Options {
                 two_l,
                 saves,
                 hold_enabled,
-                *hold,
-                *b2b,
-                *combo,
-            ) {
+                initial_hold: *hold,
+                initial_b2b: *b2b,
+                initial_combo: *combo,
+            };
+            if let Some(result) = opts.best(*field, queue.as_slice()) {
                 *steps = result.moves;
                 events.extend(result.events);
             }

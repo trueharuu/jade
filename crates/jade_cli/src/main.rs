@@ -26,8 +26,8 @@ use jade_core::render::cell;
 use jade_core::rotation::Rotation;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
-use jade_solve::best::best;
-use jade_solve::best::best_with_state;
+
+use jade_score::Options;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
@@ -569,7 +569,9 @@ pub fn main() {
 
             let results: Vec<_> = queues
                 .par_iter()
-                .map(|queue| best_with_state(board, queue.as_slice(), false, save, *hold, None, false, None))
+                .map(|queue| {
+                    Options::new(false, save, *hold).best(board, queue.as_slice())
+                })
                 .collect();
 
             let mut solved = 0usize;
@@ -624,58 +626,65 @@ pub fn main() {
         } => {
             let board = parse_board(field.as_deref());
 
-            if let Some(res) = best(board, queue.as_slice(), false, save, *hold) {
-                let mut b = board;
-                let mut f = Fumen::default();
-                let mut cleared = 0i32;
-                for (i, &m) in res.moves.iter().enumerate() {
-                    let page = f.add_page();
-                    if i == 0 {
-                        for y in 0..4 {
-                            for x in 0..10 {
-                                if board.get(x as i32, y as i32) {
-                                    page.field[y][x] = fumen::CellColor::Grey;
-                                }
-                            }
-                        }
-                    }
-                    page.piece = Some(fumen::Piece {
-                        kind: match m.piece() {
-                            Piece::I => fumen::PieceType::I,
-                            Piece::O => fumen::PieceType::O,
-                            Piece::T => fumen::PieceType::T,
-                            Piece::L => fumen::PieceType::L,
-                            Piece::J => fumen::PieceType::J,
-                            Piece::S => fumen::PieceType::S,
-                            Piece::Z => fumen::PieceType::Z,
-                        },
-                        rotation: match m.rotation() {
-                            Rotation::North => fumen::RotationState::North,
-                            Rotation::East => fumen::RotationState::East,
-                            Rotation::South => fumen::RotationState::South,
-                            Rotation::West => fumen::RotationState::West,
-                        },
-                        x: m.x() as u32,
-                        y: (m.y() - cleared) as u32,
-                    });
-                    let lines_this = (b | m.mask()).line_clears().saturating_sub(b.line_clears());
-                    // apply placement for b tracking
-                    b |= m.mask();
-                    b = b.clearshift();
-                    cleared += lines_this;
-                }
-                let fumen_str = unglue(&f.encode()).unwrap_or_else(|_| f.encode());
+            if let Some(_res) = Options::new(false, save, *hold).best(board, queue.as_slice()) {
+                // let mut b = board;
+                // let mut f = Fumen::default();
+                // let mut cleared = 0i32;
+                // for (i, &m) in res.moves.iter().enumerate() {
+                //     let page = f.add_page();
+                //     if i == 0 {
+                //         for y in 0..4 {
+                //             for x in 0..10 {
+                //                 if board.get(x as i32, y as i32) {
+                //                     page.field[y][x] = fumen::CellColor::Grey;
+                //                 }
+                //             }
+                //         }
+                //     }
+                //     page.piece = Some(fumen::Piece {
+                //         kind: match m.piece() {
+                //             Piece::I => fumen::PieceType::I,
+                //             Piece::O => fumen::PieceType::O,
+                //             Piece::T => fumen::PieceType::T,
+                //             Piece::L => fumen::PieceType::L,
+                //             Piece::J => fumen::PieceType::J,
+                //             Piece::S => fumen::PieceType::S,
+                //             Piece::Z => fumen::PieceType::Z,
+                //         },
+                //         rotation: match m.rotation() {
+                //             Rotation::North => fumen::RotationState::North,
+                //             Rotation::East => fumen::RotationState::East,
+                //             Rotation::South => fumen::RotationState::South,
+                //             Rotation::West => fumen::RotationState::West,
+                //         },
+                //         x: m.x() as u32,
+                //         y: (m.y() - cleared) as u32,
+                //     });
+                //     page.comment = Some(format!("{}", res.events[i]));
+                //     let lines_this = (b | m.mask()).line_clears().saturating_sub(b.line_clears());
+                //     // apply placement for b tracking
+                //     b |= m.mask();
+                //     b = b.clearshift();
+                //     cleared += lines_this;
+                // }
+                
 
-                println!("{}", res.score);
-                println!("{fumen_str} {}", f.encode());
-                println!("{}", res.events.iter().map(ToString::to_string).join(", "));
+                // println!("{}", res.score);
+                // println!("{}", f.encode());
+                // println!("{}", res.events.iter().map(ToString::to_string).join(", "));
             } else {
                 eprintln!("error: no solution");
                 std::process::exit(1);
             }
         }
 
-        Command::Tree { pattern: queue, bag, field, two_l, threads: _ } => {
+        Command::Tree {
+            pattern: queue,
+            bag,
+            field,
+            two_l,
+            threads: _,
+        } => {
             let field = parse_board(field.as_deref());
             let mut queue = queue;
             let hold = if queue.is_empty() {
@@ -685,8 +694,7 @@ pub fn main() {
                 queue.pop_front();
                 Some(h)
             };
-            let mut tree = jade_oqb::oqb(field, queue, bag, two_l, hold);
-            jade_oqb::fill_moves(&mut tree, two_l, jade_solve::saves::Saves::empty(), true);
+            let tree = jade_oqb::oqb(field, queue, bag, two_l, hold);
             println!("{}", tree.to_indented_string(field));
         }
     }

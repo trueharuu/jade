@@ -90,7 +90,7 @@ impl Display for Saves {
 /// or the active piece if hold is empty. No leftover fails a non-empty set.
 #[inline(always)]
 #[must_use]
-pub(crate) fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
+pub fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool {
     if saves.is_empty() {
         return true;
     }

@@ -167,6 +167,7 @@ dependencies = [
  "jade_nav",
  "jade_oqb",
  "jade_pattern",
+ "jade_score",
  "jade_solve",
  "rayon",
 ]
@@ -187,6 +188,7 @@ name = "jade_oqb"
 version = "0.1.0"
 dependencies = [
  "jade_core",
+ "jade_score",
  "jade_solve",
  "rayon",
 ]
@@ -209,6 +211,14 @@ dependencies = [
  "jade_nav",
  "jade_pattern",
  "rayon",
+]
+
+[[package]]
+name = "jade_score"
+version = "0.1.0"
+dependencies = [
+ "jade_core",
+ "jade_solve",
 ]
 
 [[package]]

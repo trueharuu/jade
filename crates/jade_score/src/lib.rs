@@ -45,6 +45,8 @@ pub struct Options {
     pub initial_hold: Option<Piece>,
     pub initial_b2b: bool,
     pub initial_combo: Option<u32>,
+    /// When true, non-perfect-clear paths may be returned as partial results.
+    pub partial: bool,
 }
 
 impl Options {
@@ -57,6 +59,7 @@ impl Options {
             initial_hold: None,
             initial_b2b: false,
             initial_combo: None,
+            partial: false,
         }
     }
 

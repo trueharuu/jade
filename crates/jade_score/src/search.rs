@@ -23,7 +23,6 @@ use super::score::CELLS_PER_PIECE;
 use super::score::PC_CELLS;
 use super::score::ScoreState;
 
-
 /// Cells in the 2-line goal board.
 const PC_2_CELLS: u32 = 20;
 
@@ -112,10 +111,20 @@ impl Searcher<'_> {
 
         let cells = node.board.popcount();
         if cells >= PC_CELLS || pruned(node.board) {
+            if self.opts.partial && node.ply > 0 {
+                self.record(node.acc);
+            }
             return;
         }
+
+        let mut placed = false;
         for take in self.takes(&node).into_iter().flatten() {
-            self.place(&node, cells, take);
+            if self.place(&node, cells, take) {
+                placed = true;
+            }
+        }
+        if !placed && self.opts.partial && node.ply > 0 {
+            self.record(node.acc);
         }
     }
 
@@ -177,7 +186,7 @@ impl Searcher<'_> {
         out
     }
 
-    fn place(&mut self, node: &Node, cells: u32, take: Take) {
+    fn place(&mut self, node: &Node, cells: u32, take: Take) -> bool {
         let Take {
             piece,
             hold_after,
@@ -196,7 +205,7 @@ impl Searcher<'_> {
             save && (cells_after == PC_CELLS || (two_l && cells_after == PC_2_CELLS));
 
         if !can_continue && !goal_possible {
-            return;
+            return false;
         }
 
         let ply = node.ply;
@@ -211,8 +220,8 @@ impl Searcher<'_> {
             let Some((next, lines)) = apply(node.board, m) else {
                 continue;
             };
-            let pc = is_goal_board(next, two_l);
-            if !(can_continue || (pc && save)) {
+            let pc = is_goal_board(next, two_l) && save;
+            if !(can_continue || pc) {
                 continue;
             }
             let (state, event) = node.score.apply(m.spin(), lines, pc);
@@ -230,6 +239,11 @@ impl Searcher<'_> {
         // equal-score solutions is kept.
         cands.sort_by_key(|c| Reverse(c.score));
 
+        if cands.is_empty() {
+            self.pool[ply] = cands;
+            return false;
+        }
+
         for c in cands.drain(..) {
             self.path.push(c.mv);
             self.events.push(c.event);
@@ -245,6 +259,7 @@ impl Searcher<'_> {
             self.path.pop();
         }
         self.pool[ply] = cands;
+        true
     }
 }
 

@@ -13,7 +13,6 @@ use jade_score::event::Event;
 use jade_solve::saves::Saves;
 
 use crate::decision::Decision;
-use crate::decision::DecisionKind;
 use jade_core::list::List;
 use jade_core::queue::CAP;
 use crate::search::DecisionSearch;
@@ -55,48 +54,16 @@ pub fn score_suffix(
         initial_hold,
         initial_b2b,
         initial_combo,
+        partial: false,
     };
     let result = opts.best(field, queue.as_slice());
     match result {
-        Some(r) => (
-            initial_acc + u64::from(r.score),
-            Some(List::new()),
-            initial_events,
-        ),
+        Some(r) => {
+            let mut events = initial_events;
+            events.extend(r.events);
+            (initial_acc + u64::from(r.score), Some(r.moves), events)
+        }
         None => (0, None, List::new()),
-    }
-}
-
-pub fn fill_moves(decision: &mut Decision, two_l: bool, saves: Saves, hold_enabled: bool) {
-    match &mut decision.kind {
-        crate::decision::DecisionKind::Solve {
-            field,
-            queue,
-            hold,
-            b2b,
-            combo,
-            steps,
-            events,
-        } => {
-            let opts = jade_score::Options {
-                two_l,
-                saves,
-                hold_enabled,
-                initial_hold: *hold,
-                initial_b2b: *b2b,
-                initial_combo: *combo,
-            };
-            if let Some(result) = opts.best(*field, queue.as_slice()) {
-                *steps = result.moves;
-                events.extend(result.events);
-            }
-        }
-        crate::decision::DecisionKind::Branch { children, .. } => {
-            for child in children.iter_mut().flatten() {
-                fill_moves(child, two_l, saves, hold_enabled);
-            }
-        }
-        crate::decision::DecisionKind::Capped => {}
     }
 }
 

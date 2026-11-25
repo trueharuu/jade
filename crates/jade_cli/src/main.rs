@@ -174,6 +174,10 @@ pub enum Command {
         /// Whether to support hold.
         #[arg(long, default_value_t = Hold(true))]
         hold: Hold,
+
+        /// Enable partial scoring for queues that do not perfect clear.
+        #[arg(long, default_value_t = false)]
+        partial: bool,
     },
 
     /// Finds the single best scoring path for a single queue
@@ -558,6 +562,7 @@ pub fn main() {
             field,
             save,
             hold,
+            partial,
         } => {
             let board = parse_board(field.as_deref());
 
@@ -567,7 +572,9 @@ pub fn main() {
             let results: Vec<_> = queues
                 .par_iter()
                 .map(|queue| {
-                    Options::new(false, save, *hold).best(board, queue.as_slice())
+                    let mut opts = Options::new(false, save, *hold);
+                    opts.partial = partial;
+                    opts.best(board, queue.as_slice())
                 })
                 .collect();
 
@@ -579,7 +586,9 @@ pub fn main() {
             for res in results {
                 match res {
                     Some(r) => {
-                        solved += 1;
+                        if r.events.iter().last().map(|e| e.pc).unwrap_or(false) {
+                            solved += 1;
+                        }
                         score_sum += u64::from(r.score);
                         let events = r
                             .events
@@ -623,52 +632,55 @@ pub fn main() {
         } => {
             let board = parse_board(field.as_deref());
 
-            if let Some(_res) = Options::new(false, save, *hold).best(board, queue.as_slice()) {
-                // let mut b = board;
-                // let mut f = Fumen::default();
-                // let mut cleared = 0i32;
-                // for (i, &m) in res.moves.iter().enumerate() {
-                //     let page = f.add_page();
-                //     if i == 0 {
-                //         for y in 0..4 {
-                //             for x in 0..10 {
-                //                 if board.get(x as i32, y as i32) {
-                //                     page.field[y][x] = fumen::CellColor::Grey;
-                //                 }
-                //             }
-                //         }
-                //     }
-                //     page.piece = Some(fumen::Piece {
-                //         kind: match m.piece() {
-                //             Piece::I => fumen::PieceType::I,
-                //             Piece::O => fumen::PieceType::O,
-                //             Piece::T => fumen::PieceType::T,
-                //             Piece::L => fumen::PieceType::L,
-                //             Piece::J => fumen::PieceType::J,
-                //             Piece::S => fumen::PieceType::S,
-                //             Piece::Z => fumen::PieceType::Z,
-                //         },
-                //         rotation: match m.rotation() {
-                //             Rotation::North => fumen::RotationState::North,
-                //             Rotation::East => fumen::RotationState::East,
-                //             Rotation::South => fumen::RotationState::South,
-                //             Rotation::West => fumen::RotationState::West,
-                //         },
-                //         x: m.x() as u32,
-                //         y: (m.y() - cleared) as u32,
-                //     });
-                //     page.comment = Some(format!("{}", res.events[i]));
-                //     let lines_this = (b | m.mask()).line_clears().saturating_sub(b.line_clears());
-                //     // apply placement for b tracking
-                //     b |= m.mask();
-                //     b = b.clearshift();
-                //     cleared += lines_this;
-                // }
-                
+            if let Some(res) = Options::new(false, save, *hold).best(board, queue.as_slice()) {
+                let mut b = board;
+                let mut f = Fumen::default();
+                let mut cleared = 0i32;
+                for (i, &m) in res.moves.iter().enumerate() {
+                    let page = f.add_page();
+                    if i == 0 {
+                        for y in 0..4 {
+                            for x in 0..10 {
+                                if board.get(x as i32, y as i32) {
+                                    page.field[y][x] = fumen::CellColor::Grey;
+                                }
+                            }
+                        }
+                    }
+                    page.piece = Some(fumen::Piece {
+                        kind: match m.piece() {
+                            Piece::I => fumen::PieceType::I,
+                            Piece::O => fumen::PieceType::O,
+                            Piece::T => fumen::PieceType::T,
+                            Piece::L => fumen::PieceType::L,
+                            Piece::J => fumen::PieceType::J,
+                            Piece::S => fumen::PieceType::S,
+                            Piece::Z => fumen::PieceType::Z,
+                        },
+                        rotation: match m.rotation() {
+                            Rotation::North => fumen::RotationState::North,
+                            Rotation::East => fumen::RotationState::East,
+                            Rotation::South => fumen::RotationState::South,
+                            Rotation::West => fumen::RotationState::West,
+                        },
+                        x: m.x() as u32,
+                        y: (m.y() - cleared) as u32,
+                    });
+                    page.comment = Some(format!("{}", res.events[i]));
+                    let lines_this = (b | m.mask()).line_clears().saturating_sub(if i == 0 {
+                        0
+                    } else {
+                        b.line_clears()
+                    });
+                    // apply placement for b tracking
+                    b |= m.mask();
+                    b = b.clearshift();
+                    cleared += lines_this;
+                }
 
-                // println!("{}", res.score);
-                // println!("{}", f.encode());
-                // println!("{}", res.events.iter().map(ToString::to_string).join(", "));
+                println!("{}", res.score);
+                println!("{}", f.encode());
+                println!("{}", res.events.iter().map(ToString::to_string).join(", "));
             } else {
                 eprintln!("error: no solution");
                 std::process::exit(1);

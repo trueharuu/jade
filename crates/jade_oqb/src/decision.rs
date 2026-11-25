@@ -31,6 +31,16 @@ pub enum DecisionKind {
         events: List<Event, CAP>,
     },
 
+    Partial {
+        field: Board,
+        queue: Queue,
+        hold: Option<Piece>,
+        b2b: bool,
+        combo: Option<u32>,
+        steps: List<Move, CAP>,
+        events: List<Event, CAP>,
+    },
+
     Capped,
 }
 
@@ -99,6 +109,36 @@ impl Decision {
             cap,
             leaves,
             kind: DecisionKind::Solve {
+                field,
+                queue,
+                hold,
+                b2b,
+                combo,
+                steps,
+                events,
+            },
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn partial(
+        cost: u64,
+        cap: u64,
+        leaves: u64,
+        field: Board,
+        queue: Queue,
+        hold: Option<Piece>,
+        b2b: bool,
+        combo: Option<u32>,
+        steps: List<Move, CAP>,
+        events: List<Event, CAP>,
+    ) -> Self {
+        Self {
+            cost,
+            cap,
+            leaves,
+            kind: DecisionKind::Partial {
                 field,
                 queue,
                 hold,

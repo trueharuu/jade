@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use jade_solve::fumen::encode_placements;
 
 use crate::Decision;
-use crate::DecisionKind;
+use crate::decision::DecisionKind;
 
 impl Decision {
     /// Writes the decision tree in a simple indented format.
@@ -33,6 +33,9 @@ impl Decision {
                     }
                     child.write_indented(output, indent + 1, *next)?;
                 }
+            }
+            DecisionKind::Partial { .. } => {
+                unreachable!("Partial nodes are not rendered until serde support is implemented");
             }
             DecisionKind::Solve { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
                 let events = events

@@ -206,9 +206,6 @@ pub enum Command {
         /// Count a two-line field as success.
         #[arg(long = "2l")]
         two_l: bool,
-        /// Number of threads.
-        #[arg(short, long, default_value_t = 1)]
-        threads: usize,
     },
 
     Render {
@@ -683,7 +680,6 @@ pub fn main() {
             bag,
             field,
             two_l,
-            threads: _,
         } => {
             let field = parse_board(field.as_deref());
             let mut queue = queue;

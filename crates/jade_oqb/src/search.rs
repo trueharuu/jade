@@ -3,9 +3,9 @@ use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
-use jade_core::score::Event;
 use jade_core::score::Spin;
 
+use jade_score::event::Event;
 use jade_solve::moves::moves;
 use jade_solve::rules::outside_playfield;
 use jade_solve::rules::pieces_to_goal;
@@ -389,9 +389,7 @@ impl SearchContext {
         };
 
         for (job_index, job) in jobs.iter().copied().enumerate() {
-            let Some(candidate) = self.tree_root_job(job, queue, bag, cutoffs) else {
-                continue;
-            };
+            let candidate = self.tree_root_job(job, queue, bag, cutoffs);
 
             if root_candidate_wins(candidate.cost(), job_index, best.decision.cost(), best.job) {
                 best.decision = candidate;
@@ -402,13 +400,7 @@ impl SearchContext {
         best.decision
     }
 
-    fn tree_root_job(
-        &self,
-        job: RootJob,
-        queue: &Queue,
-        bag: Bag,
-        cutoffs: &[u64],
-    ) -> Option<Decision> {
+    fn tree_root_job(&self, job: RootJob, queue: &Queue, bag: Bag, cutoffs: &[u64]) -> Decision {
         let queue = *queue;
         let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0], cutoffs[0]);
 
@@ -439,7 +431,7 @@ impl SearchContext {
             decision.set_cost(decision.cost() + child.cost());
             decision.set_child(piece, child);
         }
-        Some(decision)
+        decision
     }
 }
 

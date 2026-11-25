@@ -7,7 +7,6 @@ use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::CAP;
-use jade_core::score::Event;
 use jade_solve::rules::outside_playfield;
 use jade_solve::rules::pieces_to_goal;
 use jade_solve::rules::pruned;
@@ -16,19 +15,21 @@ use jade_solve::solve::PC_2;
 use jade_solve::solve::PC_4;
 use jade_solve::solve::moves;
 
+use crate::event::Event;
+
 use super::BestResult;
 use super::Options;
 use super::score::CELLS_PER_PIECE;
 use super::score::PC_CELLS;
 use super::score::ScoreState;
-use super::score::remaining_bound;
+
 
 /// Cells in the 2-line goal board.
 const PC_2_CELLS: u32 = 20;
 
 /// One search position.
 #[derive(Clone, Copy)]
-struct Node {
+pub struct Node {
     board: Board,
     hold: Option<Piece>,
     /// Index of the next queue piece.
@@ -42,14 +43,15 @@ struct Node {
 
 /// One way to take a piece: from the queue or from hold.
 #[derive(Clone, Copy)]
-struct Take {
+pub struct Take {
     piece: Piece,
     hold_after: Option<Piece>,
     depth_after: usize,
 }
 
 /// A legal move with its result, ready to recurse into.
-struct Candidate {
+#[derive(Clone, Copy)]
+pub struct Candidate {
     mv: Move,
     board: Board,
     event: Event,
@@ -112,12 +114,6 @@ impl Searcher<'_> {
         if cells >= PC_CELLS || pruned(node.board) {
             return;
         }
-        if let Some(best) = &self.best
-            && node.acc + remaining_bound(cells, node.score.combo) <= best.score
-        {
-            return;
-        }
-
         for take in self.takes(&node).into_iter().flatten() {
             self.place(&node, cells, take);
         }

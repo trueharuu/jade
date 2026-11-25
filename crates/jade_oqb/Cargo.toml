@@ -7,7 +7,6 @@ edition = "2024"
 jade_core = { version = "0.1.0", path = "../jade_core" }
 jade_score = { version = "0.1.0", path = "../jade_score" }
 jade_solve = { version = "0.1.0", path = "../jade_solve" }
-rayon = "1.12"
 
 [lints]
 workspace = true

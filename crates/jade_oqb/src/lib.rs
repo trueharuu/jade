@@ -9,7 +9,7 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
-use jade_core::score::Event;
+use jade_score::event::Event;
 use jade_solve::saves::Saves;
 
 use crate::decision::Decision;

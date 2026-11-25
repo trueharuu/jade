@@ -190,7 +190,6 @@ dependencies = [
  "jade_core",
  "jade_score",
  "jade_solve",
- "rayon",
 ]
 
 [[package]]

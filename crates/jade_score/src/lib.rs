@@ -4,16 +4,17 @@
 //! perfect-clear solution, scores each one, and keeps the highest-scoring
 //! move sequence together with its scoring events.
 
-mod score;
-mod search;
+pub mod event;
+pub mod score;
+pub mod search;
 
 use jade_core::board::Board;
 use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::CAP;
-use jade_core::score::Event;
 
+use crate::event::Event;
 use jade_solve::Saves;
 use score::CELLS_PER_PIECE;
 use score::PC_CELLS;
@@ -69,4 +70,3 @@ impl Options {
         search::run(board, queue, *self)
     }
 }
-

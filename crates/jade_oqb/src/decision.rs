@@ -2,9 +2,9 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
-use jade_core::score::Event;
 use jade_core::list::List;
 use jade_core::queue::CAP;
+use jade_score::event::Event;
 
 pub struct Decision {
     pub cost: u64,

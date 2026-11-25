@@ -112,6 +112,30 @@ pub fn best_with_state(
     )
 }
 
+pub fn best_score_with_state(
+    board: Board,
+    queue: &[Piece],
+    two_l: bool,
+    saves: Saves,
+    hold_enabled: bool,
+    initial_hold: Option<Piece>,
+    initial_b2b: bool,
+    initial_combo: Option<u32>,
+) -> Option<BestResult> {
+    let mut memo = Memo::default();
+    best_inner::<false>(
+        board,
+        queue,
+        two_l,
+        saves,
+        hold_enabled,
+        initial_hold,
+        initial_b2b,
+        initial_combo,
+        &mut memo,
+    )
+}
+
 /// Returns the single highest-scoring perfect-clear path for `board` and
 /// `queue`, or `None` when no solution exists.
 #[must_use]
@@ -264,9 +288,8 @@ fn remaining_bound(cells: u32, combo: Option<u32>) -> u32 {
     let next_combo = u64::from(combo.map_or(0, |c| c + 1));
     let combo_sum = u64::from(r) * next_combo + (u64::from(r) * (u64::from(r) - 1)) / 2;
     let combo_score = 50 * combo_sum;
-    let base_score = 3000 * u64::from(r);
-    let pc_bonus = 3000u64;
-    (base_score + combo_score + pc_bonus) as u32
+    let base_score = 2400 * u64::from(r - 1) + 5400;
+    (base_score + combo_score) as u32
 }
 
 #[allow(clippy::too_many_arguments)]

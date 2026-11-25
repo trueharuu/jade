@@ -6,7 +6,7 @@ use std::str::FromStr;
 use jade_core::piece::Piece;
 
 /// A set of piece types, stored as one bit per piece.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Saves(u8);
 
 impl Saves {

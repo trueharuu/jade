@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use rayon::prelude::*;
 use std::sync::Mutex;
 use std::thread;
 
@@ -30,6 +31,7 @@ struct RootJob {
     piece: Piece,
     mv: Move,
     state: ScoreState,
+    hold: Option<Piece>,
 }
 
 pub struct DecisionSearch {
@@ -37,15 +39,17 @@ pub struct DecisionSearch {
     saves: Saves,
     hold_enabled: bool,
     threads: usize,
+    initial_hold: Option<Piece>,
 }
 
 impl DecisionSearch {
-    pub fn new(two_l: bool, saves: Saves, hold_enabled: bool, threads: usize) -> Self {
+    pub fn new(two_l: bool, saves: Saves, hold_enabled: bool, threads: usize, initial_hold: Option<Piece>) -> Self {
         Self {
             two_l,
             saves,
             hold_enabled,
             threads: threads.max(1),
+            initial_hold,
         }
     }
 
@@ -67,7 +71,7 @@ impl DecisionSearch {
             field,
             &mut queue,
             bag,
-            None,
+            self.initial_hold,
             ScoreState {
                 b2b: false,
                 combo: None,
@@ -159,7 +163,7 @@ fn tree_imperfect(
             state.acc,
         );
         return Some(match steps {
-            Some(steps) => Decision::solve(cost, 0, 1, steps, events),
+            Some(steps) => Decision::solve(cost, 0, 1, field, *queue, hold, state.b2b, state.combo, steps, events),
             None => Decision::capped(cost, 0, 1),
         });
     }
@@ -346,30 +350,36 @@ fn tree_action(
     first_zero: &AtomicUsize,
 ) -> Option<Decision> {
     let mut decision = Decision::branch(next_field, placed_piece, mv, cutoffs[depth], cutoffs[depth]);
-    for piece in bag.pieces() {
-        if cancelled(root_job, first_zero) {
-            return None;
-        }
-        queue.push_back(piece);
-        let child = tree_imperfect(
-            next_field,
-            queue,
-            bag.remove(piece),
-            hold,
-            state.clone(),
-            depth + 1,
-            cutoffs,
-            two_l,
-            saves,
-            hold_enabled,
-            root_job,
-            first_zero,
-            1,
-        );
-        queue.pop_back();
-        let child = child?;
+    let pieces: Vec<Piece> = bag.pieces().collect();
+    let results: Vec<(Piece, Option<Decision>)> = pieces
+        .par_iter()
+        .map(move |&piece| {
+            let mut q = *queue;
+            q.push_back(piece);
+            let child = tree_imperfect(
+                next_field,
+                &mut q,
+                bag.remove(piece),
+                hold,
+                state.clone(),
+                depth + 1,
+                cutoffs,
+                two_l,
+                saves,
+                hold_enabled,
+                root_job,
+                first_zero,
+                1,
+            );
+            (piece, child)
+        })
+        .collect();
+
+    for (piece, child) in results {
+        let Some(child) = child else {
+            continue;
+        };
         decision.set_cost(decision.cost() + child.cost());
-        // store event-adjusted cost by mutating child? Decision cost immutable; create new?
         decision.set_child(piece, child);
     }
     Some(decision)
@@ -390,6 +400,7 @@ fn tree_root_parallel(
     threads: usize,
 ) -> Decision {
     let mut jobs: Vec<RootJob> = Vec::new();
+
     for mv in &moves(field, front) {
         let mut next = field;
         next |= mv.mask();
@@ -403,10 +414,51 @@ fn tree_root_parallel(
             piece: front,
             mv,
             state: new_state,
+            hold,
         });
     }
 
-    // Hold-piece and hold-swap placements are handled by the first job? For simplicity, root only active.
+    if hold_enabled {
+        if let Some(h) = hold {
+            if h != front {
+                for mv in &moves(field, h) {
+                    let mut next = field;
+                    next |= mv.mask();
+                    next = next.clearshift();
+                    if outside_playfield(next) || pruned(next) {
+                        continue;
+                    }
+                    let new_state = update_state(&state, field, mv);
+                    jobs.push(RootJob {
+                        field: next,
+                        piece: h,
+                        mv,
+                        state: new_state,
+                        hold: Some(front),
+                    });
+                }
+            }
+        } else if !queue.as_slice().is_empty() {
+            let next_piece = queue.as_slice()[0];
+            for mv in &moves(field, next_piece) {
+                let mut next = field;
+                next |= mv.mask();
+                next = next.clearshift();
+                if outside_playfield(next) || pruned(next) {
+                    continue;
+                }
+                let new_state = update_state(&state, field, mv);
+                jobs.push(RootJob {
+                    field: next,
+                    piece: next_piece,
+                    mv,
+                    state: new_state,
+                    hold: Some(front),
+                });
+            }
+        }
+    }
+
     if jobs.is_empty() {
         return Decision::capped(0, cutoffs[0], cutoffs[0]);
     }
@@ -438,8 +490,6 @@ fn tree_root_parallel(
                     job_index,
                     job,
                     queue,
-                    hold,
-                    state,
                     bag,
                     cutoffs,
                     best,
@@ -469,8 +519,6 @@ fn tree_root_job(
     job_index: usize,
     job: RootJob,
     queue: &Queue,
-    hold: Option<Piece>,
-    state: ScoreState,
     bag: Bag,
     cutoffs: &[u64],
     best: &Mutex<RootBest>,
@@ -482,28 +530,35 @@ fn tree_root_job(
     let mut queue = *queue;
     let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0], cutoffs[0]);
 
-    for piece in bag.pieces() {
-        if cancelled(Some(job_index), first_zero) {
-            return None;
-        }
-        queue.push_back(piece);
-        let child = tree_imperfect(
-            job.field,
-            &mut queue,
-            bag.remove(piece),
-            hold,
-            job.state.clone(),
-            1,
-            cutoffs,
-            two_l,
-            saves,
-            hold_enabled,
-            Some(job_index),
-            first_zero,
-            1,
-        );
-        queue.pop_back();
-        let child = child?;
+    let pieces: Vec<Piece> = bag.pieces().collect();
+    let results: Vec<(Piece, Option<Decision>)> = pieces
+        .par_iter()
+        .map(move |&piece| {
+            let mut q = queue;
+            q.push_back(piece);
+            let child = tree_imperfect(
+                job.field,
+                &mut q,
+                bag.remove(piece),
+                job.hold,
+                job.state.clone(),
+                1,
+                cutoffs,
+                two_l,
+                saves,
+                hold_enabled,
+                Some(job_index),
+                first_zero,
+                1,
+            );
+            (piece, child)
+        })
+        .collect();
+
+    for (piece, child) in results {
+        let Some(child) = child else {
+            continue;
+        };
         decision.set_cost(decision.cost() + child.cost());
         decision.set_child(piece, child);
     }

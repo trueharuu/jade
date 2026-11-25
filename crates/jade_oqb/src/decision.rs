@@ -1,6 +1,7 @@
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
+use jade_core::queue::Queue;
 use jade_core::score::Event;
 
 pub struct Decision {
@@ -19,6 +20,11 @@ pub enum DecisionKind {
     },
 
     Solve {
+        field: Board,
+        queue: Queue,
+        hold: Option<Piece>,
+        b2b: bool,
+        combo: Option<u32>,
         steps: Vec<Move>,
         events: Vec<Event>,
     },
@@ -74,12 +80,31 @@ impl Decision {
 
     #[inline]
     #[must_use]
-    pub const fn solve(cost: u64, cap: u64, leaves: u64, steps: Vec<Move>, events: Vec<Event>) -> Self {
+    pub fn solve(
+        cost: u64,
+        cap: u64,
+        leaves: u64,
+        field: Board,
+        queue: Queue,
+        hold: Option<Piece>,
+        b2b: bool,
+        combo: Option<u32>,
+        steps: Vec<Move>,
+        events: Vec<Event>,
+    ) -> Self {
         Self {
             cost,
             cap,
             leaves,
-            kind: DecisionKind::Solve { steps, events },
+            kind: DecisionKind::Solve {
+                field,
+                queue,
+                hold,
+                b2b,
+                combo,
+                steps,
+                events,
+            },
         }
     }
 

@@ -34,7 +34,7 @@ impl Decision {
                     child.write_indented(output, indent + 1, *next)?;
                 }
             }
-            DecisionKind::Solve { steps, events } => {
+            DecisionKind::Solve { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
                 let events = events
                     .iter()
                     .map(ToString::to_string)

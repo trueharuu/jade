@@ -92,10 +92,8 @@ pub fn score_suffix(
 
     if let Some(cached) = cached {
         match cached {
-            Some((score, events)) => {
-                let mut ev = initial_events;
-                ev.extend(events);
-                (initial_acc + score, Some(Vec::new()), ev)
+            Some((score, _events)) => {
+                (initial_acc + score, Some(Vec::new()), initial_events)
             }
             None => (0, None, Vec::new()),
         }

@@ -203,6 +203,9 @@ pub enum Command {
         /// Starting field.
         #[arg(short, long)]
         field: Option<String>,
+        /// Count a two-line field as success.
+        #[arg(long = "2l")]
+        two_l: bool,
         /// Number of threads.
         #[arg(short, long, default_value_t = 1)]
         threads: usize,
@@ -672,9 +675,9 @@ pub fn main() {
             }
         }
 
-        Command::Tree { pattern: queue, bag, field, threads } => {
+        Command::Tree { pattern: queue, bag, field, two_l, threads } => {
             let field = parse_board(field.as_deref());
-            let tree = jade_oqb::oqb(field, queue, bag, threads);
+            let tree = jade_oqb::oqb(field, queue, bag, two_l, threads);
             println!("{}", tree.to_indented_string(field));
         }
     }

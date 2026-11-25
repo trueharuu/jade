@@ -9,7 +9,7 @@ use jade_core::queue::Queue;
 use jade_core::score::{Event, Spin};
 
 use jade_solve::moves::moves;
-use jade_solve::rules::{outside_playfield, pruned};
+use jade_solve::rules::{outside_playfield, pieces_to_goal, pruned};
 use jade_solve::saves::Saves;
 
 use crate::bag::Bag;
@@ -139,7 +139,13 @@ fn tree_imperfect(
     if cancelled(root_job, first_zero) {
         return None;
     }
-    if depth >= cutoffs.len().saturating_sub(1) {
+    let enough = {
+        let cells = field.popcount();
+        let k = pieces_to_goal(cells, two_l);
+        let need = k + usize::from(hold_enabled);
+        queue.len() >= need
+    };
+    if depth >= cutoffs.len().saturating_sub(1) || enough {
         let (cost, steps, events) = score_suffix(
             field,
             *queue,

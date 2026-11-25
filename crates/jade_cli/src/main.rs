@@ -27,7 +27,7 @@ use jade_core::rotation::Rotation;
 use jade_pattern::Pattern;
 use jade_pattern::disjoint::DisjointPattern;
 use jade_solve::best::best;
-use jade_solve::best::best_score;
+use jade_solve::best::best_with_state;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
@@ -569,7 +569,7 @@ pub fn main() {
 
             let results: Vec<_> = queues
                 .par_iter()
-                .map(|queue| best_score(board, queue.as_slice(), false, save, *hold))
+                .map(|queue| best_with_state(board, queue.as_slice(), false, save, *hold, None, false, None))
                 .collect();
 
             let mut solved = 0usize;
@@ -675,7 +675,7 @@ pub fn main() {
             }
         }
 
-        Command::Tree { pattern: queue, bag, field, two_l, threads } => {
+        Command::Tree { pattern: queue, bag, field, two_l, threads: _ } => {
             let field = parse_board(field.as_deref());
             let mut queue = queue;
             let hold = if queue.is_empty() {
@@ -685,7 +685,7 @@ pub fn main() {
                 queue.pop_front();
                 Some(h)
             };
-            let mut tree = jade_oqb::oqb(field, queue, bag, two_l, threads, hold);
+            let mut tree = jade_oqb::oqb(field, queue, bag, two_l, hold);
             jade_oqb::fill_moves(&mut tree, two_l, jade_solve::saves::Saves::empty(), true);
             println!("{}", tree.to_indented_string(field));
         }

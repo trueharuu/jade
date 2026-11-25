@@ -3,6 +3,8 @@ use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
 use jade_core::score::Event;
+use jade_core::list::List;
+use jade_core::queue::CAP;
 
 pub struct Decision {
     pub cost: u64,
@@ -25,8 +27,8 @@ pub enum DecisionKind {
         hold: Option<Piece>,
         b2b: bool,
         combo: Option<u32>,
-        steps: Vec<Move>,
-        events: Vec<Event>,
+        steps: List<Move, CAP>,
+        events: List<Event, CAP>,
     },
 
     Capped,
@@ -89,8 +91,8 @@ impl Decision {
         hold: Option<Piece>,
         b2b: bool,
         combo: Option<u32>,
-        steps: Vec<Move>,
-        events: Vec<Event>,
+        steps: List<Move, CAP>,
+        events: List<Event, CAP>,
     ) -> Self {
         Self {
             cost,

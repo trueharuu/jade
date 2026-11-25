@@ -44,7 +44,7 @@ impl Decision {
                     output,
                     "{}{}\t{}\t{}\t{}",
                     pad,
-                    encode_placements(&field, steps),
+                    encode_placements(&field, steps.as_slice()),
                     self.leaves(),
                     self.cost,
                     events

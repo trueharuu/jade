@@ -4,19 +4,17 @@
 //! perfect-clear solution, scores each one, and keeps the highest-scoring
 //! move sequence together with its scoring events.
 
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+// no memo imports
 
 use jade_core::board::Board;
+use jade_core::list::List;
+use jade_core::queue::CAP;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::score::Event;
 use jade_core::score::Spin;
 
 use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 
 use crate::moves::moves;
 use crate::rules::PC_2;
@@ -31,9 +29,9 @@ use crate::saves::save_ok;
 #[derive(Debug, Clone)]
 pub struct BestResult {
     /// The move sequence, in placement order. Empty for score-only searches.
-    pub moves: Vec<Move>,
+    pub moves: List<Move, CAP>,
     /// The scoring event for each move, in the same order.
-    pub events: Vec<Event>,
+    pub events: List<Event, CAP>,
     /// Total score of the sequence.
     pub score: u32,
 }
@@ -61,29 +59,11 @@ struct StateKey {
     combo: Option<u32>,
 }
 
-#[derive(Default)]
-struct Memo {
-    dead: FxHashSet<StateKey>,
-}
-
 struct Best {
     found: bool,
     score: u32,
-    moves: Vec<Move>,
-    events: Vec<Event>,
-}
-
-thread_local! {
-    static TLS_MEMO: RefCell<Memo> = RefCell::new(Memo::default());
-    static TLS_GEN: Cell<u64> = const { Cell::new(0) };
-}
-
-static BATCH_GEN: AtomicU64 = AtomicU64::new(0);
-
-/// Starts a new shared-memo batch. Call once before a batch of `best_shared`
-/// calls.
-pub fn best_batch_start() {
-    BATCH_GEN.fetch_add(1, Ordering::SeqCst);
+    moves: List<Move, CAP>,
+    events: List<Event, CAP>,
 }
 
 /// Highest-scoring path with an initial hold piece and score state.
@@ -98,8 +78,7 @@ pub fn best_with_state(
     initial_b2b: bool,
     initial_combo: Option<u32>,
 ) -> Option<BestResult> {
-    let mut memo = Memo::default();
-    best_inner::<true>(
+    best_inner(
         board,
         queue,
         two_l,
@@ -108,7 +87,6 @@ pub fn best_with_state(
         initial_hold,
         initial_b2b,
         initial_combo,
-        &mut memo,
     )
 }
 
@@ -123,8 +101,7 @@ pub fn best_score_with_state(
     initial_b2b: bool,
     initial_combo: Option<u32>,
 ) -> Option<BestResult> {
-    let mut memo = Memo::default();
-    best_inner::<false>(
+    best_inner(
         board,
         queue,
         two_l,
@@ -133,7 +110,6 @@ pub fn best_score_with_state(
         initial_hold,
         initial_b2b,
         initial_combo,
-        &mut memo,
     )
 }
 
@@ -147,49 +123,11 @@ pub fn best(
     saves: Saves,
     hold_enabled: bool,
 ) -> Option<BestResult> {
-    let mut memo = Memo::default();
-    best_inner::<true>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
-}
-
-/// Score-only variant. It skips move tracking and is faster for callers that
-/// only need events and score.
-#[must_use]
-pub fn best_score(
-    board: Board,
-    queue: &[Piece],
-    two_l: bool,
-    saves: Saves,
-    hold_enabled: bool,
-) -> Option<BestResult> {
-    let mut memo = Memo::default();
-    best_inner::<false>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
-}
-
-/// Score-only variant that uses the thread-local shared memo of the current
-/// batch.
-#[must_use]
-pub fn best_score_shared(
-    board: Board,
-    queue: &[Piece],
-    two_l: bool,
-    saves: Saves,
-    hold_enabled: bool,
-) -> Option<BestResult> {
-    let generation = BATCH_GEN.load(Ordering::SeqCst);
-    TLS_GEN.with(|g| {
-        if g.get() != generation {
-            g.set(generation);
-            TLS_MEMO.with(|m| *m.borrow_mut() = Memo::default());
-        }
-    });
-    TLS_MEMO.with(|m| {
-        let mut memo = m.borrow_mut();
-        best_inner::<false>(board, queue, two_l, saves, hold_enabled, None, false, None, &mut memo)
-    })
+    best_inner(board, queue, two_l, saves, hold_enabled, None, false, None)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn best_inner<const TRACK: bool>(
+fn best_inner(
     board: Board,
     queue: &[Piece],
     two_l: bool,
@@ -198,7 +136,6 @@ fn best_inner<const TRACK: bool>(
     initial_hold: Option<Piece>,
     initial_b2b: bool,
     initial_combo: Option<u32>,
-    memo: &mut Memo,
 ) -> Option<BestResult> {
     let board = board.clearshift();
     let cells = board.popcount();
@@ -224,16 +161,15 @@ fn best_inner<const TRACK: bool>(
     let mut best = Best {
         found: false,
         score: 0,
-        moves: Vec::new(),
-        events: Vec::new(),
+        moves: List::new(),
+        events: List::new(),
     };
-    let mut path: Vec<Move> = Vec::new();
-    let mut events: Vec<Event> = Vec::new();
+    let mut path: List<Move, CAP> = List::new();
+    let mut events: List<Event, CAP> = List::new();
     let mut best_acc = FxHashMap::default();
 
-    search::<TRACK>(
+    search(
         &ctx,
-        memo,
         &mut best_acc,
         board,
         initial_hold,
@@ -294,17 +230,16 @@ fn remaining_bound(cells: u32, combo: Option<u32>) -> u32 {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn search<const TRACK: bool>(
+fn search(
     ctx: &Ctx,
-    memo: &mut Memo,
     best_acc: &mut FxHashMap<StateKey, u32>,
     board: Board,
     hold: Option<Piece>,
     depth: usize,
     queue: &[Piece],
     hold_enabled: bool,
-    path: &mut Vec<Move>,
-    events: &mut Vec<Event>,
+    path: &mut List<Move, CAP>,
+    events: &mut List<Event, CAP>,
     state: ScoreState,
     acc: u32,
     best: &mut Best,
@@ -315,11 +250,7 @@ fn search<const TRACK: bool>(
         if !best.found || acc > best.score {
             best.found = true;
             best.score = acc;
-            if TRACK {
-                best.moves = path.clone();
-            } else {
-                best.moves.clear();
-            }
+            best.moves = path.clone();
             best.events = events.clone();
         }
         return true;
@@ -334,9 +265,6 @@ fn search<const TRACK: bool>(
     }
 
     let key = memo_key(ctx, board, depth, hold, state);
-    if memo.dead.contains(&key) {
-        return false;
-    }
     if let Some(prev) = best_acc.get(&key)
         && acc <= *prev
     {
@@ -356,9 +284,8 @@ fn search<const TRACK: bool>(
     let mut reachable = false;
 
     if let Some(piece) = active {
-        reachable |= place::<TRACK>(
+        reachable |= place(
             ctx,
-            memo,
             best_acc,
             board,
             cells,
@@ -377,9 +304,8 @@ fn search<const TRACK: bool>(
         if hold_enabled {
             match hold {
                 Some(h) if h != piece => {
-                    reachable |= place::<TRACK>(
+                    reachable |= place(
                         ctx,
-                        memo,
                         best_acc,
                         board,
                         cells,
@@ -396,9 +322,8 @@ fn search<const TRACK: bool>(
                     );
                 }
                 None if depth + 1 < queue.len() => {
-                    reachable |= place::<TRACK>(
+                    reachable |= place(
                         ctx,
-                        memo,
                         best_acc,
                         board,
                         cells,
@@ -418,9 +343,8 @@ fn search<const TRACK: bool>(
             }
         }
     } else if let Some(piece) = hold {
-        reachable |= place::<TRACK>(
+        reachable |= place(
             ctx,
-            memo,
             best_acc,
             board,
             cells,
@@ -437,16 +361,12 @@ fn search<const TRACK: bool>(
         );
     }
 
-    if !reachable {
-        memo.dead.insert(key);
-    }
     reachable
 }
 
 #[allow(clippy::too_many_arguments)]
-fn place<const TRACK: bool>(
+fn place(
     ctx: &Ctx,
-    memo: &mut Memo,
     best_acc: &mut FxHashMap<StateKey, u32>,
     board: Board,
     cells: u32,
@@ -455,8 +375,8 @@ fn place<const TRACK: bool>(
     depth_after: usize,
     queue: &[Piece],
     hold_enabled: bool,
-    path: &mut Vec<Move>,
-    events: &mut Vec<Event>,
+    path: &mut List<Move, CAP>,
+    events: &mut List<Event, CAP>,
     state: ScoreState,
     acc: u32,
     best: &mut Best,
@@ -534,13 +454,10 @@ fn place<const TRACK: bool>(
     candidates.sort_by_key(|a| std::cmp::Reverse(a.4));
 
     for (m, next, event, new_state, event_score) in candidates {
-        if TRACK {
-            path.push(m);
-        }
+        path.push(m);
         events.push(event);
-        if search::<TRACK>(
+        if search(
             ctx,
-            memo,
             best_acc,
             next,
             hold_after,
@@ -556,9 +473,7 @@ fn place<const TRACK: bool>(
             reachable = true;
         }
         events.pop();
-        if TRACK {
-            path.pop();
-        }
+        path.pop();
     }
 
     reachable

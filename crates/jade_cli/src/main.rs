@@ -210,6 +210,9 @@ pub enum Command {
         /// Count a two-line field as success.
         #[arg(long = "2l")]
         two_l: bool,
+        /// Enable partial scoring for suffixes that do not perfect clear.
+        #[arg(long)]
+        partial: bool,
     },
 
     Render {
@@ -692,6 +695,7 @@ pub fn main() {
             bag,
             field,
             two_l,
+            partial,
         } => {
             let field = parse_board(field.as_deref());
             let mut queue = queue;
@@ -702,7 +706,7 @@ pub fn main() {
                 queue.pop_front();
                 Some(h)
             };
-            let tree = jade_oqb::oqb(field, queue, bag, two_l, hold);
+            let tree = jade_oqb::oqb(field, queue, bag, two_l, hold, partial);
             println!("{}", tree.to_indented_string(field));
         }
     }

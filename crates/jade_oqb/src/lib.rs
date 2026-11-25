@@ -41,6 +41,7 @@ pub fn score_suffix(
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
+    partial: bool,
     initial_hold: Option<Piece>,
     initial_b2b: bool,
     initial_combo: Option<u32>,
@@ -54,7 +55,7 @@ pub fn score_suffix(
         initial_hold,
         initial_b2b,
         initial_combo,
-        partial: false,
+        partial,
     };
     let result = opts.best(field, queue.as_slice());
     match result {
@@ -75,10 +76,11 @@ pub fn oqb(
     bag: Bag,
     two_l: bool,
     initial_hold: Option<Piece>,
+    partial: bool,
 ) -> Decision {
     let placed = field.popcount() as usize / 4;
     let see = queue.len();
     let cutoffs = crate::cutoffs(placed, see, bag);
-    let search = DecisionSearch::new(two_l, Saves::empty(), true, initial_hold);
+    let search = DecisionSearch::new(two_l, Saves::empty(), true, partial, initial_hold);
     search.solve(field, queue, bag, &cutoffs)
 }

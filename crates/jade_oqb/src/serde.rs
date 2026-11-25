@@ -34,8 +34,21 @@ impl Decision {
                     child.write_indented(output, indent + 1, *next)?;
                 }
             }
-            DecisionKind::Partial { .. } => {
-                unreachable!("Partial nodes are not rendered until serde support is implemented");
+            DecisionKind::Partial { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
+                let events = events
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    output,
+                    "{}{}\t{}\t{}\t{}\tpartial",
+                    pad,
+                    encode_placements(&field, steps.as_slice()),
+                    self.leaves(),
+                    self.cost,
+                    events
+                )?;
             }
             DecisionKind::Solve { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
                 let events = events

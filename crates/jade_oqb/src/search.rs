@@ -37,6 +37,7 @@ struct SearchContext {
     two_l: bool,
     saves: Saves,
     hold_enabled: bool,
+    partial: bool,
 }
 
 pub struct RootBest {
@@ -55,6 +56,7 @@ impl DecisionSearch {
         two_l: bool,
         saves: Saves,
         hold_enabled: bool,
+        partial: bool,
         initial_hold: Option<Piece>,
     ) -> Self {
         Self {
@@ -62,6 +64,7 @@ impl DecisionSearch {
                 two_l,
                 saves,
                 hold_enabled,
+                partial,
             },
             initial_hold,
         }
@@ -120,6 +123,7 @@ impl SearchContext {
                 self.two_l,
                 self.saves,
                 self.hold_enabled,
+                self.partial,
                 hold,
                 state.b2b,
                 state.combo,

@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OQB tree viewer</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --card: #111111;
+      --field: #222222;
+      --line: #e5e9f0;
+      --text: #d8d8d8;
+      --muted: #888888;
+      --red: #bf616a;
+      --green: #a3be8c;
+      --purple: #b48ead;
+      --c: 14px;
+      --T: rgb(255, 128, 255);
+      --I: rgb(128, 255, 255);
+      --J: rgb(128, 128, 255);
+      --L: rgb(255, 191, 128);
+      --O: rgb(255, 255, 128);
+      --S: rgb(128, 255, 128);
+      --Z: rgb(255, 128, 128);
+      --X: rgb(128, 128, 128);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      background: #272c36;
+      border-bottom: 1px solid #3b4252;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    #info {
+      color: var(--muted);
+      flex: 1;
+      min-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      font: inherit;
+      color: var(--text);
+      background: #3b4252;
+      border: 1px solid #4c566a;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #4c566a;
+    }
+
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid #88c0d0;
+      outline-offset: 2px;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+    }
+
+    #vp {
+      flex: 1;
+      overflow: auto;
+      cursor: grab;
+      position: relative;
+    }
+
+    #vp.pan {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    .tree {
+      width: max-content;
+      min-width: 100%;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .drop {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 40px;
+      border: 2px dashed #4c566a;
+      border-radius: 8px;
+      color: var(--muted);
+    }
+
+    .drop[hidden],
+    .ov[hidden] {
+      display: none;
+    }
+
+    .drop p {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .ov {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(46, 52, 64, .88);
+      border: 3px dashed #88c0d0;
+      font-size: 18px;
+      pointer-events: none;
+    }
+
+    /* tree layout and connectors */
+    .n {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .kids {
+      display: flex;
+      padding-top: 12px;
+      position: relative;
+    }
+
+    .kids::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      height: 12px;
+      border-left: 1px solid var(--line);
+    }
+
+    .kids>.n {
+      padding: 12px 5px 0;
+    }
+
+    .kids>.n::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .kids>.n::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      height: 12px;
+      border-left: 1px solid var(--line);
+    }
+
+    .kids>.n:first-child::before {
+      left: 50%;
+    }
+
+    .kids>.n:last-child::before {
+      right: 50%;
+    }
+
+    .kids>.n:only-child::before {
+      display: none;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      position: relative;
+    }
+
+    .br,
+    .sv {
+      cursor: pointer;
+    }
+
+    .sv:not(.open) figure:nth-child(n+2) {
+      display: none;
+    }
+
+    .br:hover {
+      border-color: #88c0d0;
+    }
+
+    .rv {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(var(--c) * 1.2);
+    }
+
+    .sc {
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .sc b {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .sc small {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .pill {
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .pill::before {
+      content: "▸ ";
+    }
+
+    .open .pill::before {
+      content: "▾ ";
+    }
+
+    .x {
+      color: var(--red);
+      font-size: calc(var(--c) * 2);
+      line-height: 1;
+      padding: 4px 10px;
+      font-weight: 700;
+    }
+
+    .err {
+      color: var(--red);
+      font-size: 11px;
+    }
+
+    /* boards */
+    .b {
+      border-collapse: collapse;
+      background: var(--field);
+    }
+
+    .b td {
+      width: var(--c);
+      height: var(--c);
+      padding: 0;
+      box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .05);
+    }
+
+    .b.mini {
+      background: none;
+    }
+
+    .b.mini td {
+      width: calc(var(--c) * .6);
+      height: calc(var(--c) * .6);
+      box-shadow: none;
+    }
+
+    .b.mini td.e {
+      background: none;
+    }
+
+    .T {
+      background: var(--T);
+    }
+
+    .I {
+      background: var(--I);
+    }
+
+    .J {
+      background: var(--J);
+    }
+
+    .L {
+      background: var(--L);
+    }
+
+    .O {
+      background: var(--O);
+    }
+
+    .S {
+      background: var(--S);
+    }
+
+    .Z {
+      background: var(--Z);
+    }
+
+    .X {
+      background: var(--X);
+    }
+
+    /* solve rows */
+    .row {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+
+    .row figure {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .row .b td {
+      width: calc(var(--c) * .72);
+      height: calc(var(--c) * .72);
+    }
+
+    figcaption {
+      font-size: 10px;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    figcaption.z {
+      color: var(--muted);
+    }
+
+    figcaption.ts {
+      color: var(--purple);
+    }
+
+    figcaption.pc {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .card {
+        transition: border-color .12s;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header style="display:none;">
+    <h1>OQB tree viewer</h1>
+    <span id="info">No file open</span>
+    <button id="pick">Open file</button>
+    <button id="collapse">Collapse all</button>
+    <button id="expand">Expand one level</button>
+    <label>Zoom <input id="zoom" type="range" min="0.2" max="2" step="0.05" value="1"></label>
+    <input id="fi" type="file" hidden>
+  </header>
+  <main id="vp">
+    <div id="tree" class="tree"></div>
+    <div id="empty" class="drop">
+      <p>Drop a tree file here</p><button id="pick2" onclick="document.getElementById('fi').click()">Choose
+        file</button>
+    </div>
+  </main>
+  <div id="ov" class="ov" hidden>Drop to open</div>
+  <script>var TF = (() => {
+      var He = Object.create; var te = Object.defineProperty; var Je = Object.getOwnPropertyDescriptor; var Xe = Object.getOwnPropertyNames; var Ye = Object.getPrototypeOf, Ve = Object.prototype.hasOwnProperty; var z = (t, e) => () => { try { return e || t((e = { exports: {} }).exports, e), e.exports } catch (r) { throw e = 0, r } }, Ke = (t, e) => { for (var r in e) te(t, r, { get: e[r], enumerable: !0 }) }, Fe = (t, e, r, n) => { if (e && typeof e == "object" || typeof e == "function") for (let i of Xe(e)) !Ve.call(t, i) && i !== r && te(t, i, { get: () => e[i], enumerable: !(n = Je(e, i)) || n.enumerable }); return t }; var $e = (t, e, r) => (r = t != null ? He(Ye(t)) : {}, Fe(e || !t || !t.__esModule ? te(r, "default", { value: t, enumerable: !0 }) : r, t)), et = t => Fe(te({}, "__esModule", { value: !0 }), t); var C = z(P => { "use strict"; Object.defineProperty(P, "__esModule", { value: !0 }); P.parseRotation = P.parseRotationName = P.Rotation = P.parsePiece = P.parsePieceName = P.isMinoPiece = P.Piece = void 0; var m; (function (t) { t[t.Empty = 0] = "Empty", t[t.I = 1] = "I", t[t.L = 2] = "L", t[t.O = 3] = "O", t[t.Z = 4] = "Z", t[t.T = 5] = "T", t[t.J = 6] = "J", t[t.S = 7] = "S", t[t.Gray = 8] = "Gray" })(m = P.Piece || (P.Piece = {})); function tt(t) { return t !== m.Empty && t !== m.Gray } P.isMinoPiece = tt; function rt(t) { switch (t) { case m.I: return "I"; case m.L: return "L"; case m.O: return "O"; case m.Z: return "Z"; case m.T: return "T"; case m.J: return "J"; case m.S: return "S"; case m.Gray: return "X"; case m.Empty: return "_" }throw new Error("Unknown piece: ".concat(t)) } P.parsePieceName = rt; function nt(t) { switch (t.toUpperCase()) { case "I": return m.I; case "L": return m.L; case "O": return m.O; case "Z": return m.Z; case "T": return m.T; case "J": return m.J; case "S": return m.S; case "X": case "GRAY": return m.Gray; case " ": case "_": case "EMPTY": return m.Empty }throw new Error("Unknown piece: ".concat(t)) } P.parsePiece = nt; var F; (function (t) { t[t.Spawn = 0] = "Spawn", t[t.Right = 1] = "Right", t[t.Reverse = 2] = "Reverse", t[t.Left = 3] = "Left" })(F = P.Rotation || (P.Rotation = {})); function it(t) { switch (t) { case F.Spawn: return "spawn"; case F.Left: return "left"; case F.Right: return "right"; case F.Reverse: return "reverse" }throw new Error("Unknown rotation: ".concat(t)) } P.parseRotationName = it; function ot(t) { switch (t.toLowerCase()) { case "spawn": return F.Spawn; case "left": return F.Left; case "right": return F.Right; case "reverse": return F.Reverse }throw new Error("Unknown rotation: ".concat(t)) } P.parseRotation = ot }); var ne = z(R => { "use strict"; Object.defineProperty(R, "__esModule", { value: !0 }); R.getPieces = R.getBlocks = R.getBlockXYs = R.getBlockPositions = R.PlayField = R.InnerField = R.createInnerField = R.createNewInnerField = void 0; var y = C(), v = { Width: 10, Height: 23, PlayBlocks: 230 }; function at() { return new ve({}) } R.createNewInnerField = at; function ut(t) { for (var e = new ve({}), r = -1; r < v.Height; r += 1)for (var n = 0; n < v.Width; n += 1) { var i = t.at(n, r); e.setNumberAt(n, r, (0, y.parsePiece)(i)) } return e } R.createInnerField = ut; var ve = (function () { function t(e) { var r = e.field, n = r === void 0 ? t.create(v.PlayBlocks) : r, i = e.garbage, s = i === void 0 ? t.create(v.Width) : i; this.field = n, this.garbage = s } return t.create = function (e) { return new ke({ length: e }) }, t.prototype.fill = function (e) { this.field.fill(e) }, t.prototype.fillAll = function (e, r) { this.field.fillAll(e, r) }, t.prototype.canFill = function (e, r, n, i) { var s = this, f = xe(e, r, n, i); return f.every(function (c) { var o = c[0], a = c[1]; return 0 <= o && o < 10 && 0 <= a && a < v.Height && s.getNumberAt(o, a) === y.Piece.Empty }) }, t.prototype.canFillAll = function (e) { var r = this; return e.every(function (n) { var i = n.x, s = n.y; return 0 <= i && i < 10 && 0 <= s && s < v.Height && r.getNumberAt(i, s) === y.Piece.Empty }) }, t.prototype.isOnGround = function (e, r, n, i) { return !this.canFill(e, r, n, i - 1) }, t.prototype.clearLine = function () { this.field.clearLine() }, t.prototype.riseGarbage = function () { this.field.up(this.garbage), this.garbage.clearAll() }, t.prototype.mirror = function () { this.field.mirror() }, t.prototype.shiftToLeft = function () { this.field.shiftToLeft() }, t.prototype.shiftToRight = function () { this.field.shiftToRight() }, t.prototype.shiftToUp = function () { this.field.shiftToUp() }, t.prototype.shiftToBottom = function () { this.field.shiftToBottom() }, t.prototype.copy = function () { return new t({ field: this.field.copy(), garbage: this.garbage.copy() }) }, t.prototype.equals = function (e) { return this.field.equals(e.field) && this.garbage.equals(e.garbage) }, t.prototype.addNumber = function (e, r, n) { 0 <= r ? this.field.addOffset(e, r, n) : this.garbage.addOffset(e, -(r + 1), n) }, t.prototype.setNumberFieldAt = function (e, r) { this.field.setAt(e, r) }, t.prototype.setNumberGarbageAt = function (e, r) { this.garbage.setAt(e, r) }, t.prototype.setNumberAt = function (e, r, n) { return 0 <= r ? this.field.set(e, r, n) : this.garbage.set(e, -(r + 1), n) }, t.prototype.getNumberAt = function (e, r) { return 0 <= r ? this.field.get(e, r) : this.garbage.get(e, -(r + 1)) }, t.prototype.getNumberAtIndex = function (e, r) { return r ? this.getNumberAt(e % 10, Math.floor(e / 10)) : this.getNumberAt(e % 10, -(Math.floor(e / 10) + 1)) }, t.prototype.toFieldNumberArray = function () { return this.field.toArray() }, t.prototype.toGarbageNumberArray = function () { return this.garbage.toArray() }, t })(); R.InnerField = ve; var ke = (function () { function t(e) { var r = e.pieces, n = e.length, i = n === void 0 ? v.PlayBlocks : n; r !== void 0 ? this.pieces = r : this.pieces = Array.from({ length: i }).map(function () { return y.Piece.Empty }), this.length = i } return t.load = function () { for (var e = [], r = 0; r < arguments.length; r++)e[r] = arguments[r]; var n = e.join("").trim(); return t.loadInner(n) }, t.loadMinify = function () { for (var e = [], r = 0; r < arguments.length; r++)e[r] = arguments[r]; var n = e.join("").trim(); return t.loadInner(n, n.length) }, t.loadInner = function (e, r) { var n = r !== void 0 ? r : e.length; if (n % 10 !== 0) throw new Error("Num of blocks in field should be mod 10"); for (var i = r !== void 0 ? new t({ length: r }) : new t({}), s = 0; s < n; s += 1) { var f = e[s]; i.set(s % 10, Math.floor((n - s - 1) / 10), (0, y.parsePiece)(f)) } return i }, t.prototype.get = function (e, r) { return this.pieces[e + r * v.Width] }, t.prototype.addOffset = function (e, r, n) { this.pieces[e + r * v.Width] += n }, t.prototype.set = function (e, r, n) { this.setAt(e + r * v.Width, n) }, t.prototype.setAt = function (e, r) { this.pieces[e] = r }, t.prototype.fill = function (e) { for (var r = e.type, n = e.rotation, i = e.x, s = e.y, f = re(r, n), c = 0, o = f; c < o.length; c++) { var a = o[c], d = [i + a[0], s + a[1]], p = d[0], g = d[1]; this.set(p, g, r) } }, t.prototype.fillAll = function (e, r) { for (var n = 0, i = e; n < i.length; n++) { var s = i[n], f = s.x, c = s.y; this.set(f, c, r) } }, t.prototype.clearLine = function () { for (var e = this.pieces.concat(), r = this.pieces.length / v.Width - 1, n = r; 0 <= n; n -= 1) { var i = this.pieces.slice(n * v.Width, (n + 1) * v.Width), s = i.every(function (o) { return o !== y.Piece.Empty }); if (s) { var f = e.slice(0, n * v.Width), c = e.slice((n + 1) * v.Width); e = f.concat(c, Array.from({ length: v.Width }).map(function () { return y.Piece.Empty })) } } this.pieces = e }, t.prototype.up = function (e) { this.pieces = e.pieces.concat(this.pieces).slice(0, this.length) }, t.prototype.mirror = function () { for (var e = [], r = 0; r < this.pieces.length; r += 1) { var n = this.pieces.slice(r * v.Width, (r + 1) * v.Width); n.reverse(); for (var i = 0, s = n; i < s.length; i++) { var f = s[i]; e.push(f) } } this.pieces = e }, t.prototype.shiftToLeft = function () { for (var e = this.pieces.length / 10, r = 0; r < e; r += 1) { for (var n = 0; n < v.Width - 1; n += 1)this.pieces[n + r * v.Width] = this.pieces[n + 1 + r * v.Width]; this.pieces[9 + r * v.Width] = y.Piece.Empty } }, t.prototype.shiftToRight = function () { for (var e = this.pieces.length / 10, r = 0; r < e; r += 1) { for (var n = v.Width - 1; 1 <= n; n -= 1)this.pieces[n + r * v.Width] = this.pieces[n - 1 + r * v.Width]; this.pieces[r * v.Width] = y.Piece.Empty } }, t.prototype.shiftToUp = function () { var e = Array.from({ length: 10 }).map(function () { return y.Piece.Empty }); this.pieces = e.concat(this.pieces).slice(0, this.length) }, t.prototype.shiftToBottom = function () { var e = Array.from({ length: 10 }).map(function () { return y.Piece.Empty }); this.pieces = this.pieces.slice(10, this.length).concat(e) }, t.prototype.toArray = function () { return this.pieces.concat() }, Object.defineProperty(t.prototype, "numOfBlocks", { get: function () { return this.pieces.length }, enumerable: !1, configurable: !0 }), t.prototype.copy = function () { return new t({ pieces: this.pieces.concat(), length: this.length }) }, t.prototype.toShallowArray = function () { return this.pieces }, t.prototype.clearAll = function () { this.pieces = this.pieces.map(function () { return y.Piece.Empty }) }, t.prototype.equals = function (e) { if (this.pieces.length !== e.pieces.length) return !1; for (var r = 0; r < this.pieces.length; r += 1)if (this.pieces[r] !== e.pieces[r]) return !1; return !0 }, t })(); R.PlayField = ke; function xe(t, e, r, n) { return re(t, e).map(function (i) { return i[0] += r, i[1] += n, i }) } R.getBlockPositions = xe; function st(t, e, r, n) { return re(t, e).map(function (i) { return { x: i[0] + r, y: i[1] + n } }) } R.getBlockXYs = st; function re(t, e) { var r = Ie(t); switch (e) { case y.Rotation.Spawn: return r; case y.Rotation.Left: return ft(r); case y.Rotation.Reverse: return lt(r); case y.Rotation.Right: return ct(r) }throw new Error("Unsupported block") } R.getBlocks = re; function Ie(t) { switch (t) { case y.Piece.I: return [[0, 0], [-1, 0], [1, 0], [2, 0]]; case y.Piece.T: return [[0, 0], [-1, 0], [1, 0], [0, 1]]; case y.Piece.O: return [[0, 0], [1, 0], [0, 1], [1, 1]]; case y.Piece.L: return [[0, 0], [-1, 0], [1, 0], [1, 1]]; case y.Piece.J: return [[0, 0], [-1, 0], [1, 0], [-1, 1]]; case y.Piece.S: return [[0, 0], [-1, 0], [0, 1], [1, 1]]; case y.Piece.Z: return [[0, 0], [1, 0], [0, 1], [-1, 1]] }throw new Error("Unsupported rotation") } R.getPieces = Ie; function ct(t) { return t.map(function (e) { return [e[1], -e[0]] }) } function ft(t) { return t.map(function (e) { return [-e[1], e[0]] }) } function lt(t) { return t.map(function (e) { return [-e[0], -e[1]] }) } }); var ye = z(ie => { "use strict"; Object.defineProperty(ie, "__esModule", { value: !0 }); ie.Buffer = void 0; var ge = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", dt = (function () { function t(e) { e === void 0 && (e = ""), this.values = e.split("").map(pt) } return t.prototype.poll = function (e) { for (var r = 0, n = 0; n < e; n += 1) { var i = this.values.shift(); if (i === void 0) throw new Error("Unexpected fumen"); r += i * Math.pow(t.tableLength, n) } return r }, t.prototype.push = function (e, r) { r === void 0 && (r = 1); for (var n = e, i = 0; i < r; i += 1)this.values.push(n % t.tableLength), n = Math.floor(n / t.tableLength) }, t.prototype.merge = function (e) { for (var r = 0, n = e.values; r < n.length; r++) { var i = n[r]; this.values.push(i) } }, t.prototype.isEmpty = function () { return this.values.length === 0 }, Object.defineProperty(t.prototype, "length", { get: function () { return this.values.length }, enumerable: !1, configurable: !0 }), t.prototype.get = function (e) { return this.values[e] }, t.prototype.set = function (e, r) { this.values[e] = r }, t.prototype.toString = function () { return this.values.map(ht).join("") }, t.tableLength = ge.length, t })(); ie.Buffer = dt; function pt(t) { return ge.indexOf(t) } function ht(t) { return ge[t] } }); var me = z(N => { "use strict"; var oe = N && N.__assign || function () { return oe = Object.assign || function (t) { for (var e, r = 1, n = arguments.length; r < n; r++) { e = arguments[r]; for (var i in e) Object.prototype.hasOwnProperty.call(e, i) && (t[i] = e[i]) } return t }, oe.apply(this, arguments) }; Object.defineProperty(N, "__esModule", { value: !0 }); N.createActionEncoder = N.createActionDecoder = void 0; var u = C(); function V(t) { return t !== 0 } var vt = function (t, e, r) { var n = e + r, i = n * t; function s(o) { switch (o) { case 0: return u.Piece.Empty; case 1: return u.Piece.I; case 2: return u.Piece.L; case 3: return u.Piece.O; case 4: return u.Piece.Z; case 5: return u.Piece.T; case 6: return u.Piece.J; case 7: return u.Piece.S; case 8: return u.Piece.Gray }throw new Error("Unexpected piece") } function f(o) { switch (o) { case 0: return u.Rotation.Reverse; case 1: return u.Rotation.Right; case 2: return u.Rotation.Spawn; case 3: return u.Rotation.Left }throw new Error("Unexpected rotation") } function c(o, a, d) { var p = o % t, g = Math.floor(o / 10), b = e - g - 1; return a === u.Piece.O && d === u.Rotation.Left ? (p += 1, b -= 1) : a === u.Piece.O && d === u.Rotation.Reverse ? p += 1 : a === u.Piece.O && d === u.Rotation.Spawn ? b -= 1 : a === u.Piece.I && d === u.Rotation.Reverse ? p += 1 : a === u.Piece.I && d === u.Rotation.Left || a === u.Piece.S && d === u.Rotation.Spawn ? b -= 1 : a === u.Piece.S && d === u.Rotation.Right ? p -= 1 : a === u.Piece.Z && d === u.Rotation.Spawn ? b -= 1 : a === u.Piece.Z && d === u.Rotation.Left && (p += 1), { x: p, y: b } } return { decode: function (o) { var a = o, d = s(a % 8); a = Math.floor(a / 8); var p = f(a % 4); a = Math.floor(a / 4); var g = c(a % i, d, p); a = Math.floor(a / i); var b = V(a % 2); a = Math.floor(a / 2); var l = V(a % 2); a = Math.floor(a / 2); var w = V(a % 2); a = Math.floor(a / 2); var h = V(a % 2); a = Math.floor(a / 2); var A = !V(a % 2); return { rise: b, mirror: l, colorize: w, comment: h, lock: A, piece: oe(oe({}, g), { type: d, rotation: p }) } } } }; N.createActionDecoder = vt; function K(t) { return t ? 1 : 0 } var gt = function (t, e, r) { var n = e + r, i = n * t; function s(c) { var o = c.type, a = c.rotation, d = c.x, p = c.y; return (0, u.isMinoPiece)(o) ? o === u.Piece.O && a === u.Rotation.Left ? (d -= 1, p += 1) : o === u.Piece.O && a === u.Rotation.Reverse ? d -= 1 : o === u.Piece.O && a === u.Rotation.Spawn ? p += 1 : o === u.Piece.I && a === u.Rotation.Reverse ? d -= 1 : o === u.Piece.I && a === u.Rotation.Left || o === u.Piece.S && a === u.Rotation.Spawn ? p += 1 : o === u.Piece.S && a === u.Rotation.Right ? d += 1 : o === u.Piece.Z && a === u.Rotation.Spawn ? p += 1 : o === u.Piece.Z && a === u.Rotation.Left && (d -= 1) : (d = 0, p = 22), (e - p - 1) * t + d } function f(c) { var o = c.type, a = c.rotation; if (!(0, u.isMinoPiece)(o)) return 0; switch (a) { case u.Rotation.Reverse: return 0; case u.Rotation.Right: return 1; case u.Rotation.Spawn: return 2; case u.Rotation.Left: return 3 }throw new Error("No reachable") } return { encode: function (c) { var o = c.lock, a = c.comment, d = c.colorize, p = c.mirror, g = c.rise, b = c.piece, l = K(!o); return l *= 2, l += K(a), l *= 2, l += K(d), l *= 2, l += K(p), l *= 2, l += K(g), l *= i, l += s(b), l *= 4, l += f(b), l *= 8, l += b.type, l } } }; N.createActionEncoder = gt }); var Pe = z(ae => { "use strict"; Object.defineProperty(ae, "__esModule", { value: !0 }); ae.createCommentParser = void 0; var we = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", be = we.length + 1, yt = function () { return { decode: function (t) { for (var e = "", r = t, n = 0; n < 4; n += 1) { var i = r % be; e += we[i], r = Math.floor(r / be) } return e }, encode: function (t, e) { return we.indexOf(t) * Math.pow(be, e) } } }; ae.createCommentParser = yt }); var Re = z(ue => { "use strict"; Object.defineProperty(ue, "__esModule", { value: !0 }); ue.Quiz = void 0; var T = C(), k; (function (t) { t.Direct = "direct", t.Swap = "swap", t.Stock = "stock" })(k || (k = {})); var mt = (function () { function t(e) { this.quiz = t.verify(e) } return Object.defineProperty(t.prototype, "next", { get: function () { var e = this.quiz.indexOf(")") + 1, r = this.quiz[e]; return r === void 0 || r === ";" ? "" : r }, enumerable: !1, configurable: !0 }), t.isQuizComment = function (e) { return e.startsWith("#Q=") }, t.create = function (e, r) { var n = function (i, s) { var f = function (c) { return c || "" }; return new t("#Q=[".concat(f(i), "](").concat(f(s[0]), ")").concat(f(s.substring(1)))) }; return r !== void 0 ? n(e, r) : n(void 0, e) }, t.trim = function (e) { return e.trim().replace(/\s+/g, "") }, Object.defineProperty(t.prototype, "least", { get: function () { var e = this.quiz.indexOf(")"); return this.quiz.substr(e + 1) }, enumerable: !1, configurable: !0 }), Object.defineProperty(t.prototype, "current", { get: function () { var e = this.quiz.indexOf("(") + 1, r = this.quiz[e]; return r === ")" ? "" : r }, enumerable: !1, configurable: !0 }), Object.defineProperty(t.prototype, "hold", { get: function () { var e = this.quiz.indexOf("[") + 1, r = this.quiz[e]; return r === "]" ? "" : r }, enumerable: !1, configurable: !0 }), Object.defineProperty(t.prototype, "leastAfterNext2", { get: function () { var e = this.quiz.indexOf(")"); return this.quiz[e + 1] === ";" ? this.quiz.substr(e + 1) : this.quiz.substr(e + 2) }, enumerable: !1, configurable: !0 }), t.prototype.getOperation = function (e) { var r = (0, T.parsePieceName)(e), n = this.current; if (r === n) return k.Direct; var i = this.hold; if (r === i) return k.Swap; if (i === "") { if (r === this.next) return k.Stock } else if (n === "" && r === this.next) return k.Direct; throw new Error("Unexpected hold piece in quiz: ".concat(this.quiz)) }, Object.defineProperty(t.prototype, "leastInActiveBag", { get: function () { var e = this.quiz.indexOf(";"), r = 0 <= e ? this.quiz.substring(0, e) : this.quiz, n = r.indexOf(")"); return r[n + 1] === ";" ? r.substr(n + 1) : r.substr(n + 2) }, enumerable: !1, configurable: !0 }), t.verify = function (e) { var r = this.trim(e); if (r.length === 0 || e === "#Q=[]()" || !e.startsWith("#Q=")) return e; if (!r.match(/^#Q=\[[TIOSZJL]?]\([TIOSZJL]?\)[TIOSZJL]*;?.*$/i)) throw new Error("Current piece doesn't exist, however next pieces exist: ".concat(e)); return r }, t.prototype.direct = function () { if (this.current === "") { var e = this.leastAfterNext2; return new t("#Q=[".concat(this.hold, "](").concat(e[0], ")").concat(e.substr(1))) } return new t("#Q=[".concat(this.hold, "](").concat(this.next, ")").concat(this.leastAfterNext2)) }, t.prototype.swap = function () { if (this.hold === "") throw new Error("Cannot find hold piece: ".concat(this.quiz)); var e = this.next; return new t("#Q=[".concat(this.current, "](").concat(e, ")").concat(this.leastAfterNext2)) }, t.prototype.stock = function () { if (this.hold !== "" || this.next === "") throw new Error("Cannot stock: ".concat(this.quiz)); var e = this.leastAfterNext2, r = e[0] !== void 0 ? e[0] : ""; return 1 < e.length ? new t("#Q=[".concat(this.current, "](").concat(r, ")").concat(e.substr(1))) : new t("#Q=[".concat(this.current, "](").concat(r, ")")) }, t.prototype.operate = function (e) { switch (e) { case k.Direct: return this.direct(); case k.Swap: return this.swap(); case k.Stock: return this.stock() }throw new Error("Unexpected operation") }, t.prototype.format = function () { var e = this.nextIfEnd(); if (e.quiz === "#Q=[]()") return new t(""); var r = e.current, n = e.hold; if (r === "" && n !== "") return new t("#Q=[](".concat(n, ")").concat(e.least)); if (r === "") { var i = e.least, s = i[0]; return s === void 0 ? new t("") : s === ";" ? new t(i.substr(1)) : new t("#Q=[](".concat(s, ")").concat(i.substr(1))) } return e }, t.prototype.getHoldPiece = function () { if (!this.canOperate()) return T.Piece.Empty; var e = this.hold; return e === void 0 || e === "" || e === ";" ? T.Piece.Empty : (0, T.parsePiece)(e) }, t.prototype.getNextPieces = function (e) { if (!this.canOperate()) return e !== void 0 ? Array.from({ length: e }).map(function () { return T.Piece.Empty }) : []; var r = (this.current + this.next + this.leastInActiveBag).substr(0, e); return e !== void 0 && r.length < e && (r += " ".repeat(e - r.length)), r.split("").map(function (n) { return n === void 0 || n === " " || n === ";" ? T.Piece.Empty : (0, T.parsePiece)(n) }) }, t.prototype.toString = function () { return this.quiz }, t.prototype.canOperate = function () { var e = this.quiz; return e.startsWith("#Q=[]();") && (e = this.quiz.substr(8)), e.startsWith("#Q=") && e !== "#Q=[]()" }, t.prototype.nextIfEnd = function () { return this.quiz.startsWith("#Q=[]();") ? new t(this.quiz.substr(8)) : this }, t })(); ue.Quiz = mt }); var Oe = z(S => {
+        "use strict"; var ce = S && S.__assign || function () { return ce = Object.assign || function (t) { for (var e, r = 1, n = arguments.length; r < n; r++) { e = arguments[r]; for (var i in e) Object.prototype.hasOwnProperty.call(e, i) && (t[i] = e[i]) } return t }, ce.apply(this, arguments) }; Object.defineProperty(S, "__esModule", { value: !0 }); S.Mino = S.Field = void 0; var se = ne(), Q = C(); function qe(t) { return t instanceof Ee ? t.copy() : Ee.from(t) } var bt = (function () {
+          function t(e) { this.field = e } return t.create = function (e, r) { return new t(new se.InnerField({ field: e !== void 0 ? se.PlayField.load(e) : void 0, garbage: r !== void 0 ? se.PlayField.loadMinify(r) : void 0 })) }, t.prototype.canFill = function (e) { if (e === void 0) return !0; var r = qe(e); return this.field.canFillAll(r.positions()) }, t.prototype.canLock = function (e) { return e === void 0 ? !0 : this.canFill(e) ? !this.canFill(ce(ce({}, e), { y: e.y - 1 })) : !1 }, t.prototype.fill = function (e, r) { if (r === void 0 && (r = !1), e !== void 0) { var n = qe(e); if (!r && !this.canFill(n)) throw Error("Cannot fill piece on field"); return this.field.fillAll(n.positions(), (0, Q.parsePiece)(n.type)), n } }, t.prototype.put = function (e) { if (e !== void 0) { for (var r = qe(e); 0 <= r.y; r.y -= 1)if (this.canLock(r)) return this.fill(r), r; throw Error("Cannot put piece on field") } }, t.prototype.clearLine = function () { this.field.clearLine() }, t.prototype.at = function (e, r) { return (0, Q.parsePieceName)(this.field.getNumberAt(e, r)) }, t.prototype.set = function (e, r, n) { this.field.setNumberAt(e, r, (0, Q.parsePiece)(n)) }, t.prototype.copy = function () { return new t(this.field.copy()) }, t.prototype.str = function (e) {
+            e === void 0 && (e = {}); for (var r = e.reduced !== void 0 ? e.reduced : !0, n = e.separator !== void 0 ? e.separator : `
+`, i = e.garbage === void 0 || e.garbage ? -1 : 0, s = "", f = 22; i <= f; f -= 1) { for (var c = "", o = 0; o < 10; o += 1)c += this.at(o, f); r && c === "__________" || (r = !1, s += c, f !== i && (s += n)) } return s
+          }, t
+        })(); S.Field = bt; var Ee = (function () { function t(e, r, n, i) { this.type = e, this.rotation = r, this.x = n, this.y = i } return t.from = function (e) { return new t(e.type, e.rotation, e.x, e.y) }, t.prototype.positions = function () { return (0, se.getBlockXYs)((0, Q.parsePiece)(this.type), (0, Q.parseRotation)(this.rotation), this.x, this.y).sort(function (e, r) { return e.y === r.y ? e.x - r.x : e.y - r.y }) }, t.prototype.operation = function () { return { type: this.type, rotation: this.rotation, x: this.x, y: this.y } }, t.prototype.isValid = function () { try { (0, Q.parsePiece)(this.type), (0, Q.parseRotation)(this.rotation) } catch { return !1 } return this.positions().every(function (e) { var r = e.x, n = e.y; return 0 <= r && r < 10 && 0 <= n && n < 23 }) }, t.prototype.copy = function () { return new t(this.type, this.rotation, this.x, this.y) }, t })(); S.Mino = Ee
+      }); var Te = z(W => { "use strict"; Object.defineProperty(W, "__esModule", { value: !0 }); W.decode = W.extract = W.Page = void 0; var We = ne(), wt = ye(), $ = C(), Pt = me(), Rt = Pe(), Ne = Re(), Ae = Oe(), Be = (function () { function t(e, r, n, i, s, f) { this.index = e, this.operation = n, this.comment = i, this.flags = s, this.refs = f, this._field = r.copy() } return Object.defineProperty(t.prototype, "field", { get: function () { return new Ae.Field(this._field.copy()) }, set: function (e) { this._field = (0, We.createInnerField)(e) }, enumerable: !1, configurable: !0 }), t.prototype.mino = function () { return Ae.Mino.from(this.operation) }, t })(); W.Page = Be; var D = { GarbageLine: 1, Width: 10 }; function Ce(t) { var e = function (f, c) { var o = c.trim().replace(/[?\s]+/g, ""); return { version: f, data: o } }, r = t, n = r.indexOf("&"); 0 <= n && (r = r.substring(0, n)); { var i = t.match(/[vmd]115@/); if (i != null && i.index !== void 0) { var s = r.substr(i.index + 5); return e("115", s) } } { var i = t.match(/[vmd]110@/); if (i != null && i.index !== void 0) { var s = r.substr(i.index + 5); return e("110", s) } } throw new Error("Unsupported fumen version") } W.extract = Ce; function qt(t) { var e = Ce(t), r = e.version, n = e.data; switch (r) { case "115": return Se(n, 23); case "110": return Se(n, 21) }throw new Error("Unsupported fumen version") } W.decode = qt; function Se(t, e) { for (var r = e + D.GarbageLine, n = r * D.Width, i = new wt.Buffer(t), s = function (I) { for (var G = { changed: !0, field: I }, U = 0; U < n;) { var he = i.poll(2), ze = Math.floor(he / n), Le = he % n; ze === 8 && Le === n - 1 && (G.changed = !1); for (var _e = 0; _e < Le + 1; _e += 1) { var De = U % D.Width, Ze = e - Math.floor(U / D.Width) - 1; G.field.addNumber(De, Ze, ze - 8), U += 1 } } return G }, f = 0, c = (0, We.createNewInnerField)(), o = { repeatCount: -1, refIndex: { comment: 0, field: 0 }, quiz: void 0, lastCommentText: "" }, a = [], d = (0, Pt.createActionDecoder)(D.Width, e, D.GarbageLine), p = (0, Rt.createCommentParser)(); !i.isEmpty();) { var g = void 0; 0 < o.repeatCount ? (g = { field: c, changed: !1 }, o.repeatCount -= 1) : (g = s(c.copy()), g.changed || (o.repeatCount = i.poll(1))); var b = i.poll(3), l = d.decode(b), w = void 0; if (l.comment) { for (var h = [], A = i.poll(2), O = 0; O < Math.floor((A + 3) / 4); O += 1) { var q = i.poll(5); h.push(q) } for (var x = "", E = 0, J = h; E < J.length; E++) { var pe = J[E]; x += p.decode(pe) } var B = unescape(x.slice(0, A)); o.lastCommentText = B, w = { text: B }, o.refIndex.comment = f; var _ = w.text; if (Ne.Quiz.isQuizComment(_)) try { o.quiz = new Ne.Quiz(_) } catch { o.quiz = void 0 } else o.quiz = void 0 } else f === 0 ? w = { text: "" } : w = { text: o.quiz !== void 0 ? o.quiz.format().toString() : void 0, ref: o.refIndex.comment }; var ee = !1; if (o.quiz !== void 0 && (ee = !0, o.quiz.canOperate() && l.lock)) if ((0, $.isMinoPiece)(l.piece.type)) try { var X = o.quiz.nextIfEnd(), Y = X.getOperation(l.piece.type); o.quiz = X.operate(Y) } catch { o.quiz = o.quiz.format() } else o.quiz = o.quiz.format(); var M = void 0; l.piece.type !== $.Piece.Empty && (M = l.piece); var j = void 0; g.changed || f === 0 ? (j = {}, o.refIndex.field = f) : j = { ref: o.refIndex.field }, a.push(new Be(f, g.field, M !== void 0 ? Ae.Mino.from({ type: (0, $.parsePieceName)(M.type), rotation: (0, $.parseRotationName)(M.rotation), x: M.x, y: M.y }) : void 0, w.text !== void 0 ? w.text : o.lastCommentText, { quiz: ee, lock: l.lock, mirror: l.mirror, colorize: l.colorize, rise: l.rise }, { field: j.ref, comment: w.ref })), f += 1, l.lock && ((0, $.isMinoPiece)(l.piece.type) && g.field.fill(l.piece), g.field.clearLine(), l.rise && g.field.riseGarbage(), l.mirror && g.field.mirror()), c = g.field } return a } }); var je = z(H => { "use strict"; var Me = H && H.__assign || function () { return Me = Object.assign || function (t) { for (var e, r = 1, n = arguments.length; r < n; r++) { e = arguments[r]; for (var i in e) Object.prototype.hasOwnProperty.call(e, i) && (t[i] = e[i]) } return t }, Me.apply(this, arguments) }; Object.defineProperty(H, "__esModule", { value: !0 }); H.encode = void 0; var Qe = ne(), fe = ye(), Z = C(), Et = me(), Ot = Pe(), At = Re(), le = { GarbageLine: 1, Width: 10 }; function Mt(t) { for (var e = function (w, h) { var A = zt(w, h), O = A.changed, q = A.values; if (O) n.merge(q), r = -1; else if (r < 0 || n.get(r) === fe.Buffer.tableLength - 1) n.merge(q), n.push(0), r = n.length - 1; else if (n.get(r) < fe.Buffer.tableLength - 1) { var x = n.get(r); n.set(r, x + 1) } }, r = -1, n = new fe.Buffer, i = (0, Qe.createNewInnerField)(), s = (0, Et.createActionEncoder)(le.Width, 23, le.GarbageLine), f = (0, Ot.createCommentParser)(), c = "", o = void 0, a = function (w) { var h = t[w]; h.flags = h.flags ? h.flags : {}; var A = h.field, O = A !== void 0 ? (0, Qe.createInnerField)(A) : i.copy(); e(i, O); var q = h.comment !== void 0 && (w !== 0 || h.comment !== "") ? h.comment : void 0, x = h.operation !== void 0 ? { type: (0, Z.parsePiece)(h.operation.type), rotation: (0, Z.parseRotation)(h.operation.rotation), x: h.operation.x, y: h.operation.y } : { type: Z.Piece.Empty, rotation: Z.Rotation.Reverse, x: 0, y: 22 }, E; if (q !== void 0 ? q.startsWith("#Q=") ? o !== void 0 && o.format().toString() === q ? E = void 0 : (E = q, c = E, o = new At.Quiz(q)) : o !== void 0 && o.format().toString() === q ? (E = void 0, c = q, o = void 0) : (E = c !== q ? q : void 0, c = c !== q ? E : c, o = void 0) : (E = void 0, o = void 0), o !== void 0 && o.canOperate() && h.flags.lock) if ((0, Z.isMinoPiece)(x.type)) try { var J = o.nextIfEnd(), pe = J.getOperation(x.type); o = J.operate(pe) } catch { o = o.format() } else o = o.format(); var B = Me({ lock: !0, colorize: w === 0 }, h.flags), _ = { piece: x, rise: !!B.rise, mirror: !!B.mirror, colorize: !!B.colorize, lock: !!B.lock, comment: E !== void 0 }, ee = s.encode(_); if (n.push(ee, 3), E !== void 0) { var X = escape(h.comment), Y = Math.min(X.length, 4095); n.push(Y, 2); for (var M = 0; M < Y; M += 4) { for (var j = 0, I = 0; I < 4; I += 1) { var G = M + I; if (Y <= G) break; var U = X.charAt(G); j += f.encode(U, I) } n.push(j, 5) } } else h.comment === void 0 && (c = void 0); _.lock && ((0, Z.isMinoPiece)(_.piece.type) && O.fill(_.piece), O.clearLine(), _.rise && O.riseGarbage(), _.mirror && O.mirror()), i = O }, d = 0; d < t.length; d += 1)a(d); var p = n.toString(); if (p.length < 41) return p; var g = [p.substr(0, 42)], b = p.substring(42), l = b.match(/[\S]{1,47}/g) || []; return g.concat(l).join("?") } H.encode = Mt; function zt(t, e) { for (var r = 23, n = r + 1, i = n * le.Width, s = new fe.Buffer, f = function (l, w) { var h = r - w - 1; return e.getNumberAt(l, h) - t.getNumberAt(l, h) + 8 }, c = function (l, w) { var h = l * i + w; s.push(h, 2) }, o = !0, a = f(0, 0), d = -1, p = 0; p < n; p += 1)for (var g = 0; g < le.Width; g += 1) { var b = f(g, p); b !== a ? (c(a, d), d = 0, a = b) : d += 1 } return c(a, d), a === 8 && d === i - 1 && (o = !1), { changed: o, values: s } } }); var Ue = z(L => { "use strict"; Object.defineProperty(L, "__esModule", { value: !0 }); L.encoder = L.decoder = L.Mino = L.Field = void 0; var Lt = Te(), _t = je(), Ge = Oe(); Object.defineProperty(L, "Field", { enumerable: !0, get: function () { return Ge.Field } }); Object.defineProperty(L, "Mino", { enumerable: !0, get: function () { return Ge.Mino } }); L.decoder = { decode: function (t) { return (0, Lt.decode)(t) } }; L.encoder = { encode: function (t) { return "v115@".concat((0, _t.encode)(t)) } } }); var Ft = {}; Ke(Ft, { Mino: () => de.Mino, decoder: () => de.decoder }); var de = $e(Ue()); return et(Ft);
+    })();
+  </script>
+  <script>'use strict';
+    const $ = id => document.getElementById(id);
+    const vp = $('vp'), tree = $('tree'), info = $('info');
+    const MIN_ROWS = 4, OPEN_DEPTH = 0, EXPAND_LIMIT = 3000;
+    const fmt = n => Number(n).toFixed(2);
+    const decode = TF.decoder.decode;
+
+    // ---------- Parser ----------
+    // Node: t=0 branch, 1 solve, 2 capped. f fumen, l leaves, c cost, e events, r reveal piece, k children.
+    // Line kinds (after stripping leading tabs T):
+    //   1 char                 -> reveal for the next node line
+    //   2 fields (leaves,cost) -> capped; empty fumen adds one tab, so depth = T - 1
+    //   3 fields               -> branch, depth = T
+    //   4 fields               -> solve,  depth = T
+    async function parse(file, onProgress) {
+      const rd = file.stream().getReader(), dec = new TextDecoder();
+      const stack = [];
+      let root = null, pend = null, count = 0, buf = '', read = 0;
+      const feed = line => {
+        if (line.charCodeAt(line.length - 1) === 13) line = line.slice(0, -1);
+        let t = 0;
+        while (line.charCodeAt(t) === 9) t++;
+        const rest = line.slice(t);
+        if (!rest) return;
+        if (rest.length === 1) { pend = rest; return; }
+        const p = rest.split('\t');
+        let n, d = t;
+        if (p.length === 2) { n = { t: 2, l: +p[0], c: +p[1] }; d = t - 1; }
+        else if (p.length === 3) n = { t: 0, f: p[0], l: +p[1], c: +p[2], k: [] };
+        else n = { t: 1, f: p[0], l: +p[1], c: +p[2], e: p[3] };
+        n.r = pend; pend = null; count++;
+        if (d <= 0 || !stack[d - 1] || !stack[d - 1].k) { if (!root) root = n; d = 0; }
+        else stack[d - 1].k.push(n);
+        stack[d] = n; stack.length = d + 1;
+      };
+      for (; ;) {
+        const { value, done } = await rd.read();
+        if (done) break;
+        read += value.length;
+        buf += dec.decode(value, { stream: true });
+        let s = 0, i;
+        while ((i = buf.indexOf('\n', s)) >= 0) { feed(buf.slice(s, i)); s = i + 1; }
+        buf = buf.slice(s);
+        onProgress(read / file.size);
+        await new Promise(r => setTimeout(r));
+      }
+      buf += dec.decode();
+      if (buf) feed(buf);
+      return { root, count };
+    }
+
+    // ---------- Board rendering ----------
+    const filled = p => {
+      const f = p.field.copy();
+      if (p.operation) f.fill(p.operation, true);
+      return f;
+    };
+    const height = f => {
+      for (let y = 22; y >= 0; y--)
+        for (let x = 0; x < 10; x++) if (f.at(x, y) !== '_') return y + 1;
+      return 0;
+    };
+    const boardHTML = (f, rows) => {
+      let h = '<table class="b">';
+      for (let y = rows - 1; y >= 0; y--) {
+        h += '<tr>';
+        for (let x = 0; x < 10; x++) {
+          const c = f.at(x, y);
+          h += c === '_' ? '<td></td>' : `<td class="${c}"></td>`;
+        }
+        h += '</tr>';
+      }
+      return h + '</table>';
+    };
+    const miniCache = {};
+    const pieceHTML = ch => miniCache[ch] ??= (() => {
+      let cells;
+      try { cells = new TF.Mino(ch, 'spawn', 1, 1).positions(); } catch { return ch; }
+      const xs = cells.map(c => c.x), ys = cells.map(c => c.y);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const set = new Set(cells.map(c => c.x + ',' + c.y));
+      let h = `<table class="b mini" title="${ch}">`;
+      for (let y = y1; y >= y0; y--) {
+        h += '<tr>';
+        for (let x = x0; x <= x1; x++) h += set.has(x + ',' + y) ? `<td class="${ch}"></td>` : '<td class="e"></td>';
+        h += '</tr>';
+      }
+      return h + '</table>';
+    })();
+
+    // ---------- Cards ----------
+    const evClass = e => e === '0' ? 'z' : '';
+    function cardHTML(n) {
+      const rv = n.r ? `<div class="rv">${pieceHTML(n.r)}</div>` : '';
+      try {
+        if (n.t === 2)
+          return `${rv}<div class="x" title="${n.l} leaves, cost ${n.c}">✕</div>`;
+        const pages = decode(n.f);
+        if (n.t === 0) {
+          const f = filled(pages[0]);
+          const pill = n.k.length ? `<span class="pill">${n.k.length}</span>` : '';
+          return `${rv}${boardHTML(f, Math.max(MIN_ROWS, height(f)))}` +
+            `<div class="sc"><b>${fmt(n.l ? n.c / n.l : 0)}</b><small>${fmt(n.c)} / ${n.l}</small></div>${pill}`;
+        }
+        const fs = pages.map(filled);
+        const rows = Math.max(MIN_ROWS, ...fs.map(height));
+        // Events cover the whole path from the root. The last pages.length events match the pages.
+        const ev = n.e ? n.e.split(', ') : [];
+        const off = Math.max(0, ev.length - pages.length);
+        const row = fs.map((f, i) => {
+          const e = ev[off + i] ?? '';
+          return `<figure>${boardHTML(f, rows)}<figcaption class="${evClass(e)}">${e}</figcaption></figure>`;
+        }).join('');
+        // Collapsed solve cards show only the first placement (CSS hides the rest).
+        const pill = fs.length > 1 ? `<span class="pill">${fs.length - 1}</span>` : '';
+        return `${rv}<div class="row">${row}</div><div class="sc"><b>${fmt(n.c)}</b><small>score</small></div>${pill}`;
+      } catch (err) {
+        return `${rv}<div class="err">Cannot decode fumen</div>`;
+      }
+    }
+
+    function build(n, open) {
+      const el = document.createElement('div');
+      el.className = 'n';
+      const card = document.createElement('div');
+      card.className = 'card ' + ['br', 'sv', 'cap'][n.t];
+      card.innerHTML = cardHTML(n);
+      card._n = n;
+      n.card = card;
+      el.appendChild(card);
+      n.el = el;
+      if (open > 0) addKids(n, open);
+      return el;
+    }
+    function addKids(n, open) {
+      if (!n.k || !n.k.length || n.kids) return;
+      const kids = document.createElement('div');
+      kids.className = 'kids';
+      for (const c of n.k) kids.appendChild(build(c, open - 1));
+      n.el.appendChild(kids);
+      n.kids = kids;
+      n.card.classList.add('open');
+    }
+    function toggle(n) {
+      if (n.t === 1) { n.card.classList.toggle('open'); return; }
+      if (!n.k || !n.k.length) return;
+      if (n.kids) { n.kids.remove(); n.kids = null; n.card.classList.remove('open'); }
+      else addKids(n, 1);
+    }
+    function expandLevel(root) {
+      const todo = [];
+      (function walk(n) {
+        if (!n.k) return;
+        if (n.kids) n.k.forEach(walk); else if (n.k.length) todo.push(n);
+      })(root);
+      const total = todo.reduce((s, n) => s + n.k.length, 0);
+      if (total > EXPAND_LIMIT && !confirm(`This adds ${total.toLocaleString()} cards. Continue?`)) return;
+      todo.forEach(n => addKids(n, 1));
+    }
+
+    // ---------- App ----------
+    let cur = null;
+    async function open(file) {
+      if (!file) return;
+      $('empty').hidden = true;
+      info.textContent = `Reading ${file.name}…`;
+      try {
+        const { root, count } = await parse(file, p => info.textContent = `Reading ${file.name}… ${Math.round(p * 100)}%`);
+        if (!root) throw new Error('No tree found in file.');
+        cur = root;
+        tree.replaceChildren(build(root, OPEN_DEPTH));
+        const avg = root.t === 0 ? ` · root average ${fmt(root.l ? root.c / root.l : 0)}` : '';
+        info.textContent = `${file.name} · ${count.toLocaleString()} nodes${avg}`;
+        vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2;
+        vp.scrollTop = 0;
+      } catch (e) {
+        info.textContent = 'Error: ' + e.message;
+        $('empty').hidden = !!cur;
+      }
+    }
+
+    $('pick').onclick = () => $('fi').click();
+    $('fi').onchange = e => { open(e.target.files[0]); e.target.value = ''; };
+    $('collapse').onclick = () => { if (cur) tree.replaceChildren(build(cur, 0)); };
+    $('expand').onclick = () => cur && expandLevel(cur);
+    const zoom = $('zoom');
+    const setZoom = z => { z = Math.min(2, Math.max(0.2, z)); tree.style.zoom = z; zoom.value = z; };
+    zoom.oninput = () => setZoom(+zoom.value);
+    vp.addEventListener('wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom(+zoom.value * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }, { passive: false });
+    addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp') { e.preventDefault(); setZoom(+zoom.value * 1.1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setZoom(+zoom.value / 1.1); }
+    });
+
+    // Drag to pan. A drag must not toggle a card.
+    let drag = null, moved = false;
+    vp.addEventListener('pointerdown', e => {
+      if (e.button === 0) drag = { x: e.clientX, y: e.clientY, l: vp.scrollLeft, t: vp.scrollTop, m: false };
+    });
+    addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.m && Math.abs(dx) + Math.abs(dy) > 4) { drag.m = true; vp.classList.add('pan'); }
+      if (drag.m) { vp.scrollLeft = drag.l - dx; vp.scrollTop = drag.t - dy; }
+    });
+    addEventListener('pointerup', () => {
+      if (drag && drag.m) { moved = true; setTimeout(() => moved = false); }
+      drag = null; vp.classList.remove('pan');
+    });
+    vp.addEventListener('click', e => {
+      const card = e.target.closest('.card');
+      if (card && !moved) toggle(card._n);
+    });
+
+    // Drag and drop
+    let depth = 0;
+    addEventListener('dragenter', e => { e.preventDefault(); depth++; $('ov').hidden = false; });
+    addEventListener('dragover', e => e.preventDefault());
+    addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; $('ov').hidden = true; } });
+    addEventListener('drop', e => {
+      e.preventDefault(); depth = 0; $('ov').hidden = true;
+      open(e.dataTransfer.files[0]);
+    });
+  </script>
+</body>
+
+</html>

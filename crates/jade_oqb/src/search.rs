@@ -159,6 +159,116 @@ impl SearchContext {
         result
     }
 
+    fn place_active_piece(
+        &self,
+        field: Board,
+        front: Piece,
+        hold: Option<Piece>,
+        state: ScoreState,
+        queue: &mut Queue,
+        depth: usize,
+        bag: Bag,
+        cutoffs: &[u64],
+        mut best: Decision,
+        child_leaves: u64,
+    ) -> Decision {
+        for mv in &moves(field, front) {
+            let mut next = field;
+            next |= mv.mask();
+            next = next.clearshift();
+            if outside_playfield(next) || pruned(next) {
+                continue;
+            }
+            let bound = bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), self.two_l);
+            if bound <= best.cost() {
+                continue;
+            }
+            let new_state = update_state(&state, field, mv);
+            let candidate = self.tree_action(next, front, mv, hold, new_state, queue, depth, bag, cutoffs);
+            if candidate.cost() > best.cost() {
+                best = candidate;
+            }
+        }
+        best
+    }
+
+    fn place_held_piece(
+        &self,
+        field: Board,
+        front: Piece,
+        hold: Option<Piece>,
+        state: ScoreState,
+        queue: &mut Queue,
+        depth: usize,
+        bag: Bag,
+        cutoffs: &[u64],
+        mut best: Decision,
+        child_leaves: u64,
+    ) -> Decision {
+        if let Some(h) = hold {
+            if h != front {
+                for mv in &moves(field, h) {
+                    let mut next = field;
+                    next |= mv.mask();
+                    next = next.clearshift();
+                    if outside_playfield(next) || pruned(next) {
+                        continue;
+                    }
+                    let bound = bag.count() as u64
+                        * child_leaves
+                        * max_leaf_score(next.popcount(), self.two_l);
+                    if bound <= best.cost() {
+                        continue;
+                    }
+                    let new_state = update_state(&state, field, mv);
+                    let candidate = self.tree_action(
+                        next,
+                        h,
+                        mv,
+                        Some(front),
+                        new_state,
+                        queue,
+                        depth,
+                        bag,
+                        cutoffs,
+                    );
+                    if candidate.cost() > best.cost() {
+                        best = candidate;
+                    }
+                }
+            }
+        } else if !queue.as_slice().is_empty() {
+            let next_piece = queue.as_slice()[0];
+            let mut temp_queue = *queue;
+            temp_queue.pop_front();
+            for mv in &moves(field, next_piece) {
+                let mut next = field;
+                next |= mv.mask();
+                next = next.clearshift();
+                if outside_playfield(next) || pruned(next) {
+                    continue;
+                }
+                let new_state = update_state(&state, field, mv);
+                let mut q = temp_queue;
+                let candidate = self.tree_action(
+                    next,
+                    next_piece,
+                    mv,
+                    Some(front),
+                    new_state,
+                    &mut q,
+                    depth,
+                    bag,
+                    cutoffs,
+                );
+                if candidate.cost() > best.cost() {
+                    best = candidate;
+                }
+            }
+        }
+        best
+    }
+
     fn tree_after_front(
         &self,
         field: Board,
@@ -177,88 +287,14 @@ impl SearchContext {
             1
         };
 
-        for mv in &moves(field, front) {
-            let mut next = field;
-            next |= mv.mask();
-            next = next.clearshift();
-            if outside_playfield(next) || pruned(next) {
-                continue;
-            }
-            let bound =
-                bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), self.two_l);
-            if bound <= best.cost() {
-                continue;
-            }
-            let new_state = update_state(&state, field, mv);
-            let candidate =
-                self.tree_action(next, front, mv, hold, new_state, queue, depth, bag, cutoffs);
-            if candidate.cost() > best.cost() {
-                best = candidate;
-            }
-        }
+        best = self.place_active_piece(
+            field, front, hold, state, queue, depth, bag, cutoffs, best, child_leaves,
+        );
 
         if self.hold_enabled {
-            if let Some(h) = hold {
-                if h != front {
-                    for mv in &moves(field, h) {
-                        let mut next = field;
-                        next |= mv.mask();
-                        next = next.clearshift();
-                        if outside_playfield(next) || pruned(next) {
-                            continue;
-                        }
-                        let bound = bag.count() as u64
-                            * child_leaves
-                            * max_leaf_score(next.popcount(), self.two_l);
-                        if bound <= best.cost() {
-                            continue;
-                        }
-                        let new_state = update_state(&state, field, mv);
-                        let candidate = self.tree_action(
-                            next,
-                            h,
-                            mv,
-                            Some(front),
-                            new_state,
-                            queue,
-                            depth,
-                            bag,
-                            cutoffs,
-                        );
-                        if candidate.cost() > best.cost() {
-                            best = candidate;
-                        }
-                    }
-                }
-            } else if !queue.as_slice().is_empty() {
-                let next_piece = queue.as_slice()[0];
-                let mut temp_queue = *queue;
-                temp_queue.pop_front();
-                for mv in &moves(field, next_piece) {
-                    let mut next = field;
-                    next |= mv.mask();
-                    next = next.clearshift();
-                    if outside_playfield(next) || pruned(next) {
-                        continue;
-                    }
-                    let new_state = update_state(&state, field, mv);
-                    let mut q = temp_queue;
-                    let candidate = self.tree_action(
-                        next,
-                        next_piece,
-                        mv,
-                        Some(front),
-                        new_state,
-                        &mut q,
-                        depth,
-                        bag,
-                        cutoffs,
-                    );
-                    if candidate.cost() > best.cost() {
-                        best = candidate;
-                    }
-                }
-            }
+            best = self.place_held_piece(
+                field, front, hold, state, queue, depth, bag, cutoffs, best, child_leaves,
+            );
         }
 
         best

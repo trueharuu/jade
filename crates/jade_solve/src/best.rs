@@ -112,6 +112,7 @@ pub fn best_with_state(
     )
 }
 
+#[must_use]
 pub fn best_score_with_state(
     board: Board,
     queue: &[Piece],

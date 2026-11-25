@@ -1,31 +1,34 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
 use rayon::prelude::*;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::thread;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
-use jade_core::score::{Event, Spin};
+use jade_core::score::Event;
+use jade_core::score::Spin;
 
 use jade_solve::moves::moves;
-use jade_solve::rules::{outside_playfield, pieces_to_goal, pruned};
+use jade_solve::rules::outside_playfield;
+use jade_solve::rules::pieces_to_goal;
+use jade_solve::rules::pruned;
 use jade_solve::saves::Saves;
 
+use crate::Decision;
 use crate::bag::Bag;
 use crate::score_suffix;
-use crate::Decision;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct ScoreState {
     b2b: bool,
     combo: Option<u32>,
-    events: Vec<Event>,
     acc: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct RootJob {
     field: Board,
     piece: Piece,
@@ -43,7 +46,14 @@ pub struct DecisionSearch {
 }
 
 impl DecisionSearch {
-    pub fn new(two_l: bool, saves: Saves, hold_enabled: bool, threads: usize, initial_hold: Option<Piece>) -> Self {
+    #[must_use]
+    pub fn new(
+        two_l: bool,
+        saves: Saves,
+        hold_enabled: bool,
+        threads: usize,
+        initial_hold: Option<Piece>,
+    ) -> Self {
         Self {
             two_l,
             saves,
@@ -53,14 +63,12 @@ impl DecisionSearch {
         }
     }
 
-    pub fn solve(
-        &self,
-        field: Board,
-        mut queue: Queue,
-        bag: Bag,
-        cutoffs: &[u64],
-    ) -> Decision {
-        assert!(!cutoffs.is_empty(), "decision search needs at least one cutoff");
+    #[must_use]
+    pub fn solve(&self, field: Board, mut queue: Queue, bag: Bag, cutoffs: &[u64]) -> Decision {
+        assert!(
+            !cutoffs.is_empty(),
+            "decision search needs at least one cutoff"
+        );
         assert!(
             cutoffs.len() == 1 || !queue.is_empty(),
             "decision search needs a visible queue piece before a cutoff"
@@ -75,7 +83,6 @@ impl DecisionSearch {
             ScoreState {
                 b2b: false,
                 combo: None,
-                events: Vec::new(),
                 acc: 0,
             },
             0,
@@ -91,8 +98,14 @@ impl DecisionSearch {
     }
 }
 
-fn cancelled(_root_job: Option<usize>, _first_zero: &AtomicUsize) -> bool {
+const fn cancelled(_root_job: Option<usize>, _first_zero: &AtomicUsize) -> bool {
     false
+}
+
+const fn max_leaf_score(cells: u32, two_l: bool) -> u64 {
+    let r = pieces_to_goal(cells, two_l) as u64;
+    // Loose safe bound: 2400 per non-final move + 5400 for the PC move.
+    if r == 0 { 5400 } else { 2400 * (r - 1) + 5400 }
 }
 
 fn update_state(state: &ScoreState, board: Board, mv: Move) -> ScoreState {
@@ -115,13 +128,10 @@ fn update_state(state: &ScoreState, board: Board, mv: Move) -> ScoreState {
         lines,
         pc: false,
     };
-    let mut events = state.events.clone();
-    events.push(event);
     ScoreState {
         b2b: if lines > 0 { difficult } else { state.b2b },
         combo: combo_val,
-        events,
-        acc: state.acc + event.score() as u64,
+        acc: state.acc + u64::from(event.score()),
     }
 }
 
@@ -159,11 +169,22 @@ fn tree_imperfect(
             hold,
             state.b2b,
             state.combo,
-            state.events.clone(),
+            Vec::new(),
             state.acc,
         );
         return Some(match steps {
-            Some(steps) => Decision::solve(cost, 0, 1, field, *queue, hold, state.b2b, state.combo, steps, events),
+            Some(steps) => Decision::solve(
+                cost,
+                0,
+                1,
+                field,
+                *queue,
+                hold,
+                state.b2b,
+                state.combo,
+                steps,
+                events,
+            ),
             None => Decision::capped(cost, 0, 1),
         });
     }
@@ -171,10 +192,7 @@ fn tree_imperfect(
         bag = Bag::full();
     }
 
-    let front = match queue.as_slice().first().copied() {
-        Some(piece) => piece,
-        None => return None,
-    };
+    let front = queue.as_slice().first().copied()?;
     queue.pop_front();
 
     let result = if depth == 0 {
@@ -193,7 +211,7 @@ fn tree_imperfect(
             threads,
         ))
     } else {
-        tree_after_front(
+        Some(tree_after_front(
             field,
             front,
             hold,
@@ -207,7 +225,7 @@ fn tree_imperfect(
             hold_enabled,
             root_job,
             first_zero,
-        )
+        ))
     };
 
     queue.push_front(front);
@@ -228,8 +246,13 @@ fn tree_after_front(
     hold_enabled: bool,
     root_job: Option<usize>,
     first_zero: &AtomicUsize,
-) -> Option<Decision> {
+) -> Decision {
     let mut best = Decision::capped(0, cutoffs[depth], cutoffs[depth]);
+    let child_leaves = if depth + 1 < cutoffs.len() {
+        cutoffs[depth + 1]
+    } else {
+        1
+    };
 
     // Place the active piece.
     for mv in &moves(field, front) {
@@ -237,6 +260,10 @@ fn tree_after_front(
         next |= mv.mask();
         next = next.clearshift();
         if outside_playfield(next) || pruned(next) {
+            continue;
+        }
+        let bound = bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), two_l);
+        if bound <= best.cost() {
             continue;
         }
         let new_state = update_state(&state, field, mv);
@@ -255,7 +282,7 @@ fn tree_after_front(
             hold_enabled,
             root_job,
             first_zero,
-        )?;
+        );
         if candidate.cost() > best.cost() {
             best = candidate;
         }
@@ -270,6 +297,11 @@ fn tree_after_front(
                     next |= mv.mask();
                     next = next.clearshift();
                     if outside_playfield(next) || pruned(next) {
+                        continue;
+                    }
+                    let bound =
+                        bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), two_l);
+                    if bound <= best.cost() {
                         continue;
                     }
                     let new_state = update_state(&state, field, mv);
@@ -288,7 +320,7 @@ fn tree_after_front(
                         hold_enabled,
                         root_job,
                         first_zero,
-                    )?;
+                    );
                     if candidate.cost() > best.cost() {
                         best = candidate;
                     }
@@ -322,7 +354,7 @@ fn tree_after_front(
                     hold_enabled,
                     root_job,
                     first_zero,
-                )?;
+                );
                 if candidate.cost() > best.cost() {
                     best = candidate;
                 }
@@ -330,7 +362,7 @@ fn tree_after_front(
         }
     }
 
-    Some(best)
+    best
 }
 
 fn tree_action(
@@ -348,10 +380,15 @@ fn tree_action(
     hold_enabled: bool,
     root_job: Option<usize>,
     first_zero: &AtomicUsize,
-) -> Option<Decision> {
-    let mut decision = Decision::branch(next_field, placed_piece, mv, cutoffs[depth], cutoffs[depth]);
-    let pieces: Vec<Piece> = bag.pieces().collect();
+) -> Decision {
+    let mut decision =
+        Decision::branch(next_field, placed_piece, mv, cutoffs[depth], cutoffs[depth]);
+    let mut pieces = Queue::new();
+    for p in bag.pieces() {
+        pieces.push(p);
+    }
     let results: Vec<(Piece, Option<Decision>)> = pieces
+        .as_slice()
         .par_iter()
         .map(move |&piece| {
             let mut q = *queue;
@@ -361,7 +398,7 @@ fn tree_action(
                 &mut q,
                 bag.remove(piece),
                 hold,
-                state.clone(),
+                state,
                 depth + 1,
                 cutoffs,
                 two_l,
@@ -382,7 +419,8 @@ fn tree_action(
         decision.set_cost(decision.cost() + child.cost());
         decision.set_child(piece, child);
     }
-    Some(decision)
+
+    decision
 }
 
 fn tree_root_parallel(
@@ -475,36 +513,41 @@ fn tree_root_parallel(
             let best = &best;
             let next_job = &next_job;
             let jobs = &jobs;
-            let state = state.clone();
-            scope.spawn(move || loop {
-                let job_index = next_job.fetch_add(1, Ordering::Relaxed);
-                let Some(job) = jobs.get(job_index).cloned() else {
-                    break;
-                };
-                if cancelled(Some(job_index), first_zero) {
-                    break;
-                }
+            scope.spawn(move || {
+                loop {
+                    let job_index = next_job.fetch_add(1, Ordering::Relaxed);
+                    let Some(job) = jobs.get(job_index).copied() else {
+                        break;
+                    };
+                    if cancelled(Some(job_index), first_zero) {
+                        break;
+                    }
 
-                let state = state.clone();
-                let Some(candidate) = tree_root_job(
-                    job_index,
-                    job,
-                    queue,
-                    bag,
-                    cutoffs,
-                    best,
-                    first_zero,
-                    two_l,
-                    saves,
-                    hold_enabled,
-                ) else {
-                    continue;
-                };
+                    let Some(candidate) = tree_root_job(
+                        job_index,
+                        job,
+                        queue,
+                        bag,
+                        cutoffs,
+                        best,
+                        first_zero,
+                        two_l,
+                        saves,
+                        hold_enabled,
+                    ) else {
+                        continue;
+                    };
 
-                let mut current = best.lock().expect("root decision lock poisoned");
-                if root_candidate_wins(candidate.cost(), job_index, current.decision.cost(), current.job) {
-                    current.decision = candidate;
-                    current.job = job_index;
+                    let mut current = best.lock().expect("root decision lock poisoned");
+                    if root_candidate_wins(
+                        candidate.cost(),
+                        job_index,
+                        current.decision.cost(),
+                        current.job,
+                    ) {
+                        current.decision = candidate;
+                        current.job = job_index;
+                    }
                 }
             });
         }
@@ -527,11 +570,27 @@ fn tree_root_job(
     saves: Saves,
     hold_enabled: bool,
 ) -> Option<Decision> {
-    let mut queue = *queue;
+    let queue = *queue;
+    let child_leaves = if cutoffs.len() > 1 { cutoffs[1] } else { 1 };
+    let bound = bag.count() as u64 * child_leaves * max_leaf_score(job.field.popcount(), two_l);
+    {
+        let current = best
+            .lock()
+            .expect("root decision lock poisoned")
+            .decision
+            .cost();
+        if bound <= current {
+            return None;
+        }
+    }
     let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0], cutoffs[0]);
 
-    let pieces: Vec<Piece> = bag.pieces().collect();
+    let mut pieces = Queue::new();
+    for p in bag.pieces() {
+        pieces.push(p);
+    }
     let results: Vec<(Piece, Option<Decision>)> = pieces
+        .as_slice()
         .par_iter()
         .map(move |&piece| {
             let mut q = queue;
@@ -541,7 +600,7 @@ fn tree_root_job(
                 &mut q,
                 bag.remove(piece),
                 job.hold,
-                job.state.clone(),
+                job.state,
                 1,
                 cutoffs,
                 two_l,
@@ -570,6 +629,11 @@ struct RootBest {
     job: usize,
 }
 
-fn root_candidate_wins(candidate_cost: u64, candidate_job: usize, best_cost: u64, best_job: usize) -> bool {
+const fn root_candidate_wins(
+    candidate_cost: u64,
+    candidate_job: usize,
+    best_cost: u64,
+    best_job: usize,
+) -> bool {
     candidate_cost > best_cost || (candidate_cost == best_cost && candidate_job < best_job)
 }

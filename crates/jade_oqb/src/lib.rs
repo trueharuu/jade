@@ -17,22 +17,23 @@ use std::sync::Mutex;
 
 use crate::search::DecisionSearch;
 use crate::decision::Decision;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct SuffixKey {
     field: u64,
-    queue: Vec<jade_core::piece::Piece>,
-    hold: Option<jade_core::piece::Piece>,
+    queue: Queue,
+    hold: Option<Piece>,
     b2b: bool,
     combo: Option<u32>,
     two_l: bool,
-    saves: jade_solve::saves::Saves,
+    saves: Saves,
     hold_enabled: bool,
-    initial_hold: Option<jade_core::piece::Piece>,
+    initial_hold: Option<Piece>,
     initial_b2b: bool,
     initial_combo: Option<u32>,
 }
 
+#[allow(clippy::type_complexity)]
 static SUFFIX_CACHE: Mutex<Option<HashMap<SuffixKey, Option<(u64, Vec<Event>)>>>> =
     Mutex::new(None);
 use crate::decision::DecisionKind;
@@ -69,7 +70,7 @@ pub fn score_suffix(
 ) -> (u64, Option<Vec<Move>>, Vec<Event>) {
     let key = SuffixKey {
         field: field.0,
-        queue: queue.as_slice().to_vec(),
+        queue,
         hold: initial_hold,
         b2b: initial_b2b,
         combo: initial_combo,
@@ -126,7 +127,6 @@ pub fn score_suffix(
     }
 }
 
-#[must_use]
 pub fn fill_moves(decision: &mut Decision, two_l: bool, saves: Saves, hold_enabled: bool) {
     match &mut decision.kind {
         crate::decision::DecisionKind::Solve {
@@ -161,6 +161,7 @@ pub fn fill_moves(decision: &mut Decision, two_l: bool, saves: Saves, hold_enabl
     }
 }
 
+#[must_use]
 pub fn oqb(field: Board, queue: Queue, bag: Bag, two_l: bool, threads: usize, initial_hold: Option<Piece>) -> Decision {
     let placed = field.popcount() as usize / 4;
     let see = queue.len();

@@ -678,12 +678,12 @@ pub fn main() {
         Command::Tree { pattern: queue, bag, field, two_l, threads } => {
             let field = parse_board(field.as_deref());
             let mut queue = queue;
-            let hold = if queue.len() > 0 {
+            let hold = if queue.is_empty() {
+                None
+            } else {
                 let h = queue.as_slice()[0];
                 queue.pop_front();
                 Some(h)
-            } else {
-                None
             };
             let mut tree = jade_oqb::oqb(field, queue, bag, two_l, threads, hold);
             jade_oqb::fill_moves(&mut tree, two_l, jade_solve::saves::Saves::empty(), true);

@@ -80,7 +80,7 @@ impl Decision {
 
     #[inline]
     #[must_use]
-    pub fn solve(
+    pub const fn solve(
         cost: u64,
         cap: u64,
         leaves: u64,

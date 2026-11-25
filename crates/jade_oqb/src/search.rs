@@ -114,7 +114,7 @@ impl SearchContext {
             queue.len() >= need
         };
         if depth >= cutoffs.len().saturating_sub(1) || enough {
-            let (cost, steps, events) = score_suffix(
+            let (cost, steps, events, pc) = score_suffix(
                 field,
                 *queue,
                 self.two_l,
@@ -127,7 +127,19 @@ impl SearchContext {
                 state.acc,
             );
             return Some(match steps {
-                Some(steps) => Decision::solve(
+                Some(steps) if pc => Decision::solve(
+                    cost,
+                    0,
+                    1,
+                    field,
+                    *queue,
+                    hold,
+                    state.b2b,
+                    state.combo,
+                    steps,
+                    events,
+                ),
+                Some(steps) => Decision::partial(
                     cost,
                     0,
                     1,

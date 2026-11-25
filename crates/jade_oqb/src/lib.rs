@@ -46,7 +46,7 @@ pub fn score_suffix(
     initial_combo: Option<u32>,
     initial_events: List<Event, CAP>,
     initial_acc: u64,
-) -> (u64, Option<List<Move, CAP>>, List<Event, CAP>) {
+) -> (u64, Option<List<Move, CAP>>, List<Event, CAP>, bool) {
     let opts = jade_score::Options {
         two_l,
         saves,
@@ -61,9 +61,10 @@ pub fn score_suffix(
         Some(r) => {
             let mut events = initial_events;
             events.extend(r.events);
-            (initial_acc + u64::from(r.score), Some(r.moves), events)
+            let pc = r.events.iter().last().map(|e| e.pc).unwrap_or(false);
+            (initial_acc + u64::from(r.score), Some(r.moves), events, pc)
         }
-        None => (0, None, List::new()),
+        None => (0, None, List::new(), false),
     }
 }
 

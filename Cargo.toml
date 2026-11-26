@@ -23,6 +23,7 @@ inline_always = { level = "allow", priority = 2 }
 missing_const_for_fn = { level = "deny", priority = 2 }
 needless_range_loop = { level = "allow", priority = 2 }
 large_enum_variant = { level = "allow", priority = 2 }
+struct_excessive_bools = { level = "allow", priority = 2 }
 
 [profile.release]
 debug = true

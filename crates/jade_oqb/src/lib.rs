@@ -13,9 +13,9 @@ use jade_score::event::Event;
 use jade_solve::saves::Saves;
 
 use crate::decision::Decision;
+use crate::search::DecisionSearch;
 use jade_core::list::List;
 use jade_core::queue::CAP;
-use crate::search::DecisionSearch;
 
 #[must_use]
 pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
@@ -38,31 +38,16 @@ pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
 pub fn score_suffix(
     field: Board,
     queue: Queue,
-    two_l: bool,
-    saves: Saves,
-    hold_enabled: bool,
-    partial: bool,
-    initial_hold: Option<Piece>,
-    initial_b2b: bool,
-    initial_combo: Option<u32>,
+    opts: jade_score::Options,
     initial_events: List<Event, CAP>,
     initial_acc: u64,
 ) -> (u64, Option<List<Move, CAP>>, List<Event, CAP>, bool) {
-    let opts = jade_score::Options {
-        two_l,
-        saves,
-        hold_enabled,
-        initial_hold,
-        initial_b2b,
-        initial_combo,
-        partial,
-    };
     let result = opts.best(field, queue.as_slice());
     match result {
         Some(r) => {
             let mut events = initial_events;
             events.extend(r.events);
-            let pc = r.events.iter().last().map(|e| e.pc).unwrap_or(false);
+            let pc = r.events.iter().last().is_some_and(|e| e.pc);
             (initial_acc + u64::from(r.score), Some(r.moves), events, pc)
         }
         None => (0, None, List::new(), false),

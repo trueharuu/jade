@@ -589,7 +589,7 @@ pub fn main() {
             for res in results {
                 match res {
                     Some(r) => {
-                        if r.events.iter().last().map(|e| e.pc).unwrap_or(false) {
+                        if r.events.iter().last().is_some_and(|e| e.pc) {
                             solved += 1;
                         }
                         score_sum += u64::from(r.score);

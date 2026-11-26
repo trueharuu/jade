@@ -117,16 +117,19 @@ impl SearchContext {
             queue.len() >= need
         };
         if depth >= cutoffs.len().saturating_sub(1) || enough {
+            let opts = jade_score::Options {
+                two_l: self.two_l,
+                saves: self.saves,
+                hold_enabled: self.hold_enabled,
+                initial_hold: hold,
+                initial_b2b: state.b2b,
+                initial_combo: state.combo,
+                partial: self.partial,
+            };
             let (cost, steps, events, pc) = score_suffix(
                 field,
                 *queue,
-                self.two_l,
-                self.saves,
-                self.hold_enabled,
-                self.partial,
-                hold,
-                state.b2b,
-                state.combo,
+                opts,
                 List::new(),
                 state.acc,
             );

@@ -14,7 +14,7 @@ use crate::unroll;
 
 #[inline]
 #[must_use]
-pub fn generate<const P: Piece>(board: &Board) -> Moves {
+pub fn generate<const P: Piece, const SPINS: bool>(board: &Board) -> Moves {
     let usable = usable_map::<P>(board);
     let cs = P.groups();
     let ss = P.search_size();
@@ -43,7 +43,11 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     let mut full_spin = [Board::empty(); Rotation::NB];
 
     let is_t = matches!(P, Piece::T);
-    let tc = if is_t { Some(t_corners(board)) } else { None };
+    let tc = if is_t && SPINS {
+        Some(t_corners(board))
+    } else {
+        None
+    };
 
     // Single-pass BFS in the shape of Cobra's movegen.
     let mut search = [Board::empty(); Rotation::NB];
@@ -66,7 +70,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
                 shifts(&mut search, &mut unsearched, r, &fit, &mut none_spin);
 
                 if !matches!(P, Piece::O) {
-                    kick_seq::<P, { r }>(
+                    kick_seq::<P, { r }, SPINS>(
                         &mut search,
                         &mut unsearched,
                         &fit,
@@ -94,7 +98,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
         let dropped_none = project_down(floating, landed[r]) & Board(LANDED_OK[P as usize][r]);
 
         moves.none[r] = (landed_cells & none_spin[r]) | dropped_none;
-        if is_t {
+        if is_t && SPINS {
             moves.mini[r] = landed_cells & mini_spin[r];
             moves.full[r] = landed_cells & full_spin[r];
         }
@@ -170,7 +174,7 @@ const fn project_down(sources: Board, landable: Board) -> Board {
 }
 
 #[inline]
-fn kick_seq<const P: Piece, const R: usize>(
+fn kick_seq<const P: Piece, const R: usize, const SPINS: bool>(
     search: &mut [Board; Rotation::NB],
     unsearched: &mut [Board; Rotation::NB],
     fit: &[Board; Rotation::NB],
@@ -201,7 +205,7 @@ fn kick_seq<const P: Piece, const R: usize>(
 
             // Label spin arrivals (T only), for all first-valid arrivals,
             // regardless of whether the cell is new to `unsearched`.
-            if is_t {
+            if is_t && SPINS {
                 if let Some((c3, cf)) = tc {
                     let spins = arrivals & *c3;
                     if n >= 4 {

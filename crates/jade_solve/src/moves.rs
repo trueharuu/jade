@@ -11,14 +11,14 @@ use jade_nav::fast;
 /// rotation planes at compile time. This function is the only place that
 /// expands a runtime `Piece` into those calls.
 #[must_use]
-pub fn moves(board: Board, piece: Piece) -> Moves {
+pub fn moves<const SPINS: bool>(board: Board, piece: Piece) -> Moves {
     match piece {
-        Piece::T => fast::generate::<{ Piece::T }>(&board),
-        Piece::I => fast::generate::<{ Piece::I }>(&board),
-        Piece::J => fast::generate::<{ Piece::J }>(&board),
-        Piece::L => fast::generate::<{ Piece::L }>(&board),
-        Piece::O => fast::generate::<{ Piece::O }>(&board),
-        Piece::S => fast::generate::<{ Piece::S }>(&board),
-        Piece::Z => fast::generate::<{ Piece::Z }>(&board),
+        Piece::T => fast::generate::<{ Piece::T }, SPINS>(&board),
+        Piece::I => fast::generate::<{ Piece::I }, SPINS>(&board),
+        Piece::J => fast::generate::<{ Piece::J }, SPINS>(&board),
+        Piece::L => fast::generate::<{ Piece::L }, SPINS>(&board),
+        Piece::O => fast::generate::<{ Piece::O }, SPINS>(&board),
+        Piece::S => fast::generate::<{ Piece::S }, SPINS>(&board),
+        Piece::Z => fast::generate::<{ Piece::Z }, SPINS>(&board),
     }
 }

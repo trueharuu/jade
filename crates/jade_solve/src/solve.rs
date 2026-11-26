@@ -229,7 +229,7 @@ impl Solver {
             return false;
         }
 
-        for m in &moves(board, piece) {
+        for m in &moves::<false>(board, piece) {
             let mut next = board;
             next |= m.mask();
             next = next.clearshift();

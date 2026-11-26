@@ -255,7 +255,7 @@ pub(crate) fn children(boards: &[u64], piece: Piece) -> Vec<u64> {
     let mut next: Vec<u64> = Vec::new();
     for &b in boards {
         let b = Board(b);
-        for m in &moves(b, piece) {
+        for m in &moves::<false>(b, piece) {
             let mut n = b;
             n |= m.mask();
             n = n.clearshift();
@@ -339,9 +339,9 @@ fn completes(board: Board, piece: Piece, goal: Board) -> bool {
     if goal == PC_4 {
         // The placement must fill exactly the 4 empty cells.
         let need = Board(PC_4.0 & !board.0);
-        moves(board, piece).iter().any(|m| m.mask() == need)
+        moves::<false>(board, piece).iter().any(|m| m.mask() == need)
     } else {
-        moves(board, piece).iter().any(|m| {
+        moves::<false>(board, piece).iter().any(|m| {
             let mut n = board;
             n |= m.mask();
             n.clearshift() == goal

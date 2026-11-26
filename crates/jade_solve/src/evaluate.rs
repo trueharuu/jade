@@ -448,5 +448,5 @@ fn expand(boards: &[u64], codes: &[u64], win: &mut [bool], depth: usize, k: usiz
 #[inline(always)]
 fn completes(board: Board, piece: Piece) -> bool {
     let need = Board(PC_4.0 & !board.0);
-    moves(board, piece).iter().any(|m| m.mask() == need)
+    moves::<false>(board, piece).iter().any(|m| m.mask() == need)
 }

@@ -215,7 +215,7 @@ impl Searcher<'_> {
         let mut cands = std::mem::take(&mut self.pool[ply]);
         cands.clear();
 
-        let moves_list = moves(node.board, piece);
+        let moves_list = moves::<true>(node.board, piece);
         for m in &moves_list {
             let Some((next, lines)) = apply(node.board, m) else {
                 continue;

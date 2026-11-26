@@ -82,9 +82,9 @@ pub fn completes_goal(board: Board, piece: Piece, goal: Board) -> bool {
     if goal == PC_4 {
         // The placement must fill exactly the 4 empty cells.
         let need = Board(PC_4.0 & !board.0);
-        moves(board, piece).iter().any(|m| m.mask() == need)
+        moves::<false>(board, piece).iter().any(|m| m.mask() == need)
     } else {
-        moves(board, piece).iter().any(|m| {
+        moves::<false>(board, piece).iter().any(|m| {
             let mut n = board;
             n |= m.mask();
             n.clearshift() == goal

@@ -5,7 +5,7 @@ pub fn main() {
     let mut b = Board::empty();
     b.set(8, 0);
 
-    let mvs = fast::generate::<{ Piece::T }>(&b);
+    let mvs = fast::generate::<{ Piece::T }, true>(&b);
 
     for mv in &mvs {
         println!("{}", render::placement(&b, &mv));

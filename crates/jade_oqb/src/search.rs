@@ -186,7 +186,7 @@ impl SearchContext {
         mut best: Decision,
         child_leaves: u64,
     ) -> Decision {
-        for mv in &moves(field, front) {
+        for mv in &moves::<true>(field, front) {
             let mut next = field;
             next |= mv.mask();
             next = next.clearshift();
@@ -223,7 +223,7 @@ impl SearchContext {
     ) -> Decision {
         if let Some(h) = hold {
             if h != front {
-                for mv in &moves(field, h) {
+                for mv in &moves::<true>(field, h) {
                     let mut next = field;
                     next |= mv.mask();
                     next = next.clearshift();
@@ -257,7 +257,7 @@ impl SearchContext {
             let next_piece = queue.as_slice()[0];
             let mut temp_queue = *queue;
             temp_queue.pop_front();
-            for mv in &moves(field, next_piece) {
+            for mv in &moves::<true>(field, next_piece) {
                 let mut next = field;
                 next |= mv.mask();
                 next = next.clearshift();
@@ -391,7 +391,7 @@ impl SearchContext {
     ) -> Decision {
         let mut jobs: Vec<RootJob> = Vec::new();
 
-        for mv in &moves(field, front) {
+        for mv in &moves::<true>(field, front) {
             let mut next = field;
             next |= mv.mask();
             next = next.clearshift();
@@ -411,7 +411,7 @@ impl SearchContext {
         if self.hold_enabled {
             if let Some(h) = hold {
                 if h != front {
-                    for mv in &moves(field, h) {
+                    for mv in &moves::<true>(field, h) {
                         let mut next = field;
                         next |= mv.mask();
                         next = next.clearshift();
@@ -430,7 +430,7 @@ impl SearchContext {
                 }
             } else if !queue.as_slice().is_empty() {
                 let next_piece = queue.as_slice()[0];
-                for mv in &moves(field, next_piece) {
+                for mv in &moves::<true>(field, next_piece) {
                     let mut next = field;
                     next |= mv.mask();
                     next = next.clearshift();

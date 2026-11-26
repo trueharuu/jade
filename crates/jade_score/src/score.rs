@@ -1,6 +1,6 @@
 //! Score state and the upper bound used for pruning.
 
-use jade_core::score::Spin;
+use jade_core::spin::Spin;
 
 use crate::event::Event;
 

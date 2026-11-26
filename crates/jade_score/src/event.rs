@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use jade_core::score::Spin;
+use jade_core::spin::Spin;
 
 // things that affect score:
 // b2b

@@ -11,7 +11,7 @@ use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rot_idx;
 use jade_core::rotation::Rotation;
-use jade_core::score::Spin;
+use jade_core::spin::Spin;
 
 #[inline]
 #[must_use]

@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::board::Board;
 use crate::piece::Piece;
 use crate::rotation::Rotation;
-use crate::score::Spin;
+use crate::spin::Spin;
 
 // x=0..9 (4 bits)
 // y=0..7 (3 bits)

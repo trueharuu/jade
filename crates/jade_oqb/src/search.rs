@@ -3,7 +3,7 @@ use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::queue::Queue;
-use jade_core::score::Spin;
+use jade_core::spin::Spin;
 
 use jade_score::event::Event;
 use jade_solve::moves::moves;

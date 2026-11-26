@@ -443,9 +443,5 @@ satisfies it, so only `assert_matches_solver` changed.
 **`subtree` and `run_parallel` keep `&[Piece]`.** They walk a tail of the queue,
 which is a slice. `perft::run` takes the `&Queue`.
 
-**Two signatures name `jade_core::queue::Queue` in full.** `model::parse_queue`
-and `percent::assert_matches_solver` are both `#[cfg(test)]`, so a top-level
-import would be unused in a normal build.
-
 **No tests were added.** The queue tests and the `max_len` tests in the Testing
 section were not written.

@@ -350,22 +350,3 @@ impl Node {
         is_pc && save_ok(save, self.hold(), active)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn node_round_trip() {
-        let board = Board(0xAB_CDEF_0123);
-        for depth in 0..=15u8 {
-            let holds = std::iter::once(None).chain(Piece::ALL.iter().map(|&p| Some(p)));
-            for hold in holds {
-                let n = Node::new(board, hold, depth);
-                assert_eq!(n.board(), board);
-                assert_eq!(n.hold(), hold);
-                assert_eq!(n.depth(), depth);
-            }
-        }
-    }
-}

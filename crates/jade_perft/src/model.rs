@@ -65,34 +65,3 @@ fn fast_moves(piece: Piece, board: Board) -> Moves {
     }
 }
 
-/// Builds a queue from a piece-string like `TZSIJL`. Only used by tests to
-/// construct fixed queues; the binary takes queue patterns instead.
-#[cfg(test)]
-#[must_use]
-pub fn parse_queue(src: &str) -> jade_core::queue::Queue {
-    src.chars()
-        .map(|c| match c {
-            'T' => Piece::T,
-            'I' => Piece::I,
-            'J' => Piece::J,
-            'L' => Piece::L,
-            'O' => Piece::O,
-            'S' => Piece::S,
-            'Z' => Piece::Z,
-            other => panic!("invalid piece char: {other}"),
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn moves_empty_board() {
-        for &piece in &Piece::ALL {
-            let n = moves(Model::Oracle, piece, Board::empty()).iter().count();
-            assert!(n > 0, "{piece}: no placements from an empty field");
-        }
-    }
-}

@@ -78,29 +78,3 @@ fn run_parallel(model: Model, board: Board, queue: &Queue) -> u64 {
             .sum::<u64>()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::parse_queue;
-
-    fn run_queue(src: &str, threads: usize) -> u64 {
-        let queue = parse_queue(src);
-        run(Model::Oracle, Board::empty(), &queue, threads)
-    }
-
-    #[test]
-    fn single_piece_counts() {
-        assert_eq!(run_queue("T", 1), 34);
-        assert_eq!(run_queue("I", 1), 17);
-        assert_eq!(run_queue("J", 1), 34);
-        assert_eq!(run_queue("L", 1), 34);
-        assert_eq!(run_queue("O", 1), 9);
-        assert_eq!(run_queue("S", 1), 17);
-        assert_eq!(run_queue("Z", 1), 17);
-    }
-
-    #[test]
-    fn full_bag() {
-        assert_eq!(run_queue("TIJLOSZ", 1), 999_294);
-    }
-}

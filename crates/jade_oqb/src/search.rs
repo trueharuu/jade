@@ -2,6 +2,7 @@ use jade_core::board::Board;
 use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
+use jade_core::queue::CAP;
 use jade_core::queue::Queue;
 use jade_core::spin::Spin;
 
@@ -15,6 +16,26 @@ use jade_solve::saves::Saves;
 use crate::Decision;
 use crate::bag::Bag;
 use crate::score_suffix;
+
+#[derive(Default, Debug)]
+pub struct SearchStats {
+    pub score_suffix_calls: usize,
+    pub nodes: usize,
+    pub tree_imperfect_calls: usize,
+    pub tree_action_calls: usize,
+    pub place_active_calls: usize,
+    pub place_held_calls: usize,
+    pub moves_generated: usize,
+    pub moves_pruned: usize,
+    pub hold_uses: usize,
+    pub terminal_nodes: usize,
+    pub best_updates: usize,
+    pub perfect_clears: usize,
+    pub partials: usize,
+    pub bag_refills: usize,
+    pub queue_len_sum: usize,
+    pub depth_histogram: [usize; CAP],
+}
 
 #[derive(Clone, Copy)]
 struct ScoreState {
@@ -81,7 +102,9 @@ impl DecisionSearch {
             "decision search needs a visible queue piece before a cutoff"
         );
 
-        self.context
+        let mut stats = SearchStats::default();
+        let result = self
+            .context
             .tree_imperfect(
                 field,
                 &mut queue,
@@ -94,8 +117,11 @@ impl DecisionSearch {
                 },
                 0,
                 cutoffs,
+                &mut stats,
             )
-            .expect("top-level decision job cannot be cancelled")
+            .expect("top-level decision job cannot be cancelled");
+        eprintln!("{stats:#?}");
+        result
     }
 }
 
@@ -109,7 +135,11 @@ impl SearchContext {
         state: ScoreState,
         depth: usize,
         cutoffs: &[u64],
+        stats: &mut SearchStats,
     ) -> Option<Decision> {
+        stats.nodes += 1;
+        stats.tree_imperfect_calls += 1;
+        stats.depth_histogram[depth.min(12)] += 1;
         let enough = {
             let cells = field.popcount();
             let k = pieces_to_goal(cells, self.two_l);
@@ -117,6 +147,9 @@ impl SearchContext {
             queue.len() >= need
         };
         if depth >= cutoffs.len().saturating_sub(1) || enough {
+            stats.score_suffix_calls += 1;
+            stats.terminal_nodes += 1;
+            stats.queue_len_sum += queue.len();
             let opts = jade_score::Options {
                 two_l: self.two_l,
                 saves: self.saves,
@@ -126,13 +159,9 @@ impl SearchContext {
                 initial_combo: state.combo,
                 partial: self.partial,
             };
-            let (cost, steps, events, pc) = score_suffix(
-                field,
-                *queue,
-                opts,
-                List::new(),
-                state.acc,
-            );
+            let (cost, steps, events, pc) =
+                score_suffix(field, *queue, opts, List::new(), state.acc);
+            if pc { stats.perfect_clears += 1; } else { stats.partials += 1; }
             return Some(match steps {
                 Some(steps) if pc => Decision::solve(
                     cost,
@@ -163,15 +192,18 @@ impl SearchContext {
         }
         if bag.is_empty() {
             bag = Bag::full();
+            stats.bag_refills += 1;
         }
 
         let front = queue.as_slice().first().copied()?;
         queue.pop_front();
 
         let result = if depth == 0 {
-            Some(self.tree_root_parallel(field, front, hold, state, queue, bag, cutoffs))
+            Some(self.tree_root_parallel(field, front, hold, state, queue, bag, cutoffs, stats))
         } else {
-            Some(self.tree_after_front(field, front, hold, state, queue, depth, bag, cutoffs))
+            Some(
+                self.tree_after_front(field, front, hold, state, queue, depth, bag, cutoffs, stats),
+            )
         };
 
         queue.push_front(front);
@@ -190,21 +222,28 @@ impl SearchContext {
         cutoffs: &[u64],
         mut best: Decision,
         child_leaves: u64,
+        stats: &mut SearchStats,
     ) -> Decision {
+        stats.place_active_calls += 1;
         for mv in &moves(field, front) {
+            stats.moves_generated += 1;
             let mut next = field;
             next |= mv.mask();
             next = next.clearshift();
             if outside_playfield(next) || pruned(next) {
+                stats.moves_pruned += 1;
                 continue;
             }
-            let bound = bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), self.two_l);
+            let bound =
+                bag.count() as u64 * child_leaves * max_leaf_score(next.popcount(), self.two_l);
             if bound <= best.cost() {
                 continue;
             }
             let new_state = update_state(&state, field, mv);
-            let candidate = self.tree_action(next, front, mv, hold, new_state, queue, depth, bag, cutoffs);
-            if candidate.cost() > best.cost() {
+            let candidate = self.tree_action(
+                next, front, mv, hold, new_state, queue, depth, bag, cutoffs, stats,
+            );
+            if candidate.cost() > best.cost() { stats.best_updates += 1;
                 best = candidate;
             }
         }
@@ -223,10 +262,14 @@ impl SearchContext {
         cutoffs: &[u64],
         mut best: Decision,
         child_leaves: u64,
+        stats: &mut SearchStats,
     ) -> Decision {
+        stats.place_held_calls += 1;
         if let Some(h) = hold {
             if h != front {
+                stats.hold_uses += 1;
                 for mv in &moves(field, h) {
+                    stats.moves_generated += 1;
                     let mut next = field;
                     next |= mv.mask();
                     next = next.clearshift();
@@ -250,8 +293,9 @@ impl SearchContext {
                         depth,
                         bag,
                         cutoffs,
+                        stats,
                     );
-                    if candidate.cost() > best.cost() {
+                    if candidate.cost() > best.cost() { stats.best_updates += 1;
                         best = candidate;
                     }
                 }
@@ -261,10 +305,12 @@ impl SearchContext {
             let mut temp_queue = *queue;
             temp_queue.pop_front();
             for mv in &moves(field, next_piece) {
+                stats.moves_generated += 1;
                 let mut next = field;
                 next |= mv.mask();
                 next = next.clearshift();
                 if outside_playfield(next) || pruned(next) {
+                    stats.moves_pruned += 1;
                     continue;
                 }
                 let new_state = update_state(&state, field, mv);
@@ -279,8 +325,9 @@ impl SearchContext {
                     depth,
                     bag,
                     cutoffs,
+                    stats,
                 );
-                if candidate.cost() > best.cost() {
+                if candidate.cost() > best.cost() { stats.best_updates += 1;
                     best = candidate;
                 }
             }
@@ -298,6 +345,7 @@ impl SearchContext {
         depth: usize,
         bag: Bag,
         cutoffs: &[u64],
+        stats: &mut SearchStats,
     ) -> Decision {
         let mut best = Decision::capped(0, cutoffs[depth], cutoffs[depth]);
         let child_leaves = if depth + 1 < cutoffs.len() {
@@ -307,12 +355,32 @@ impl SearchContext {
         };
 
         best = self.place_active_piece(
-            field, front, hold, state, queue, depth, bag, cutoffs, best, child_leaves,
+            field,
+            front,
+            hold,
+            state,
+            queue,
+            depth,
+            bag,
+            cutoffs,
+            best,
+            child_leaves,
+            stats,
         );
 
         if self.hold_enabled {
             best = self.place_held_piece(
-                field, front, hold, state, queue, depth, bag, cutoffs, best, child_leaves,
+                field,
+                front,
+                hold,
+                state,
+                queue,
+                depth,
+                bag,
+                cutoffs,
+                best,
+                child_leaves,
+                stats,
             );
         }
 
@@ -330,7 +398,9 @@ impl SearchContext {
         depth: usize,
         bag: Bag,
         cutoffs: &[u64],
+        stats: &mut SearchStats,
     ) -> Decision {
+        stats.tree_action_calls += 1;
         let mut decision =
             Decision::branch(next_field, placed_piece, mv, cutoffs[depth], cutoffs[depth]);
         let mut pieces = Queue::new();
@@ -349,6 +419,7 @@ impl SearchContext {
                 state,
                 depth + 1,
                 cutoffs,
+                stats,
             );
             results.push((piece, child));
         }
@@ -373,14 +444,17 @@ impl SearchContext {
         queue: &Queue,
         bag: Bag,
         cutoffs: &[u64],
+        stats: &mut SearchStats,
     ) -> Decision {
         let mut jobs: Vec<RootJob> = Vec::new();
 
         for mv in &moves(field, front) {
+            stats.moves_generated += 1;
             let mut next = field;
             next |= mv.mask();
             next = next.clearshift();
             if outside_playfield(next) || pruned(next) {
+                stats.moves_pruned += 1;
                 continue;
             }
             let new_state = update_state(&state, field, mv);
@@ -397,6 +471,7 @@ impl SearchContext {
             if let Some(h) = hold {
                 if h != front {
                     for mv in &moves(field, h) {
+                    stats.moves_generated += 1;
                         let mut next = field;
                         next |= mv.mask();
                         next = next.clearshift();
@@ -416,6 +491,7 @@ impl SearchContext {
             } else if !queue.as_slice().is_empty() {
                 let next_piece = queue.as_slice()[0];
                 for mv in &moves(field, next_piece) {
+                stats.moves_generated += 1;
                     let mut next = field;
                     next |= mv.mask();
                     next = next.clearshift();
@@ -444,7 +520,7 @@ impl SearchContext {
         };
 
         for (job_index, job) in jobs.iter().copied().enumerate() {
-            let candidate = self.tree_root_job(job, queue, bag, cutoffs);
+            let candidate = self.tree_root_job(job, queue, bag, cutoffs, stats);
 
             if root_candidate_wins(candidate.cost(), job_index, best.decision.cost(), best.job) {
                 best.decision = candidate;
@@ -455,7 +531,14 @@ impl SearchContext {
         best.decision
     }
 
-    fn tree_root_job(&self, job: RootJob, queue: &Queue, bag: Bag, cutoffs: &[u64]) -> Decision {
+    fn tree_root_job(
+        &self,
+        job: RootJob,
+        queue: &Queue,
+        bag: Bag,
+        cutoffs: &[u64],
+        stats: &mut SearchStats,
+    ) -> Decision {
         let queue = *queue;
         let mut decision = Decision::branch(job.field, job.piece, job.mv, cutoffs[0], cutoffs[0]);
 
@@ -475,6 +558,7 @@ impl SearchContext {
                 job.state,
                 1,
                 cutoffs,
+                stats,
             );
             results.push((piece, child));
         }

@@ -8,6 +8,7 @@ fumen = "0.1.2"
 jade_core = { version = "0.1.0", path = "../jade_core" }
 jade_nav = { version = "0.1.0", path = "../jade_nav" }
 jade_pattern = { version = "0.1.0", path = "../jade_pattern" }
+nohash = "0.2.0"
 rayon = "1.12.0"
 rustc-hash = "2"
 

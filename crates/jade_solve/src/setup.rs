@@ -4,7 +4,7 @@ use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::queue::Queue;
 use jade_pattern::disjoint::DisjointPattern;
-use rustc_hash::FxHashMap;
+use nohash::IntMap as NoHashMap;
 
 use crate::percent::children;
 use crate::rules::piece_from_index;
@@ -240,7 +240,7 @@ fn decode_multiset(key: u64, buf: &mut [Piece; 10]) -> usize {
 /// sets are held in one arena, so a new prefix costs one board set, not a new
 /// map entry and a new box.
 struct Memo {
-    index: FxHashMap<u64, u32>,
+    index: NoHashMap<u64, u32>,
     sets: Vec<Vec<u64>>,
 }
 
@@ -248,7 +248,7 @@ impl Memo {
     /// Creates a memo that holds only the start board, at length 0.
     fn new() -> Self {
         Self {
-            index: FxHashMap::from_iter([(Self::key(0, 0), 0)]),
+            index: NoHashMap::from_iter([(Self::key(0, 0), 0)]),
             sets: vec![vec![START.0]],
         }
     }

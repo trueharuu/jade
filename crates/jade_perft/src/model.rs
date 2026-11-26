@@ -55,13 +55,13 @@ fn oracle_moves(piece: Piece, board: Board) -> Moves {
 #[must_use]
 fn fast_moves(piece: Piece, board: Board) -> Moves {
     match piece {
-        Piece::T => fast::generate::<{ Piece::T }, true>(&board),
-        Piece::I => fast::generate::<{ Piece::I }, true>(&board),
-        Piece::J => fast::generate::<{ Piece::J }, true>(&board),
-        Piece::L => fast::generate::<{ Piece::L }, true>(&board),
-        Piece::O => fast::generate::<{ Piece::O }, true>(&board),
-        Piece::S => fast::generate::<{ Piece::S }, true>(&board),
-        Piece::Z => fast::generate::<{ Piece::Z }, true>(&board),
+        Piece::T => fast::generate::<{ Piece::T }, false>(&board),
+        Piece::I => fast::generate::<{ Piece::I }, false>(&board),
+        Piece::J => fast::generate::<{ Piece::J }, false>(&board),
+        Piece::L => fast::generate::<{ Piece::L }, false>(&board),
+        Piece::O => fast::generate::<{ Piece::O }, false>(&board),
+        Piece::S => fast::generate::<{ Piece::S }, false>(&board),
+        Piece::Z => fast::generate::<{ Piece::Z }, false>(&board),
     }
 }
 

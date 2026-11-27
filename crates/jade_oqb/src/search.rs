@@ -357,24 +357,80 @@ impl SearchContext {
         }
         let pieces: SmallVec<[Piece; 7]> = pieces.as_slice().iter().copied().collect();
 
-        let collected: Vec<(Piece, Option<Decision>)> = pieces
-            .par_iter()
-            .copied()
-            .map(|piece| {
-                let mut q = *queue;
-                q.push_back(piece);
-                let child = self.tree_imperfect(
-                    next_field,
-                    &mut q,
-                    bag.remove(piece),
-                    hold,
-                    state,
-                    depth + 1,
-                    cutoffs,
-                );
-                (piece, child)
-            })
-            .collect();
+        let cells = next_field.popcount();
+        let k = pieces_to_goal(cells, self.two_l);
+        let need = k + usize::from(self.hold_enabled);
+        let last_level = depth + 1 >= cutoffs.len().saturating_sub(1)
+            || (queue.len() + 1) >= need;
+
+        let collected: Vec<(Piece, Option<Decision>)> = if last_level {
+            pieces
+                .par_iter()
+                .copied()
+                .map(|piece| {
+                    let mut q = *queue;
+                    q.push_back(piece);
+                    let opts = jade_score::Options {
+                        two_l: self.two_l,
+                        saves: self.saves,
+                        hold_enabled: self.hold_enabled,
+                        initial_hold: hold,
+                        initial_b2b: state.b2b,
+                        initial_combo: state.combo,
+                        partial: self.partial,
+                    };
+                    let (cost, steps, events, pc) =
+                        score_suffix(next_field, q, opts, List::new(), state.acc);
+                    let child = match steps {
+                        Some(steps) if pc => Decision::solve(
+                            cost,
+                            0,
+                            1,
+                            next_field,
+                            q,
+                            hold,
+                            state.b2b,
+                            state.combo,
+                            steps,
+                            events,
+                        ),
+                        Some(steps) => Decision::partial(
+                            cost,
+                            0,
+                            1,
+                            next_field,
+                            q,
+                            hold,
+                            state.b2b,
+                            state.combo,
+                            steps,
+                            events,
+                        ),
+                        None => Decision::capped(cost, 0, 1),
+                    };
+                    (piece, Some(child))
+                })
+                .collect()
+        } else {
+            pieces
+                .par_iter()
+                .copied()
+                .map(|piece| {
+                    let mut q = *queue;
+                    q.push_back(piece);
+                    let child = self.tree_imperfect(
+                        next_field,
+                        &mut q,
+                        bag.remove(piece),
+                        hold,
+                        state,
+                        depth + 1,
+                        cutoffs,
+                    );
+                    (piece, child)
+                })
+                .collect()
+        };
         let results: SmallVec<[(Piece, Option<Decision>); 7]> =
             SmallVec::from_vec(collected);
 

@@ -16,6 +16,9 @@ use crate::Decision;
 use crate::bag::Bag;
 use crate::score_suffix;
 
+use rayon::prelude::*;
+use smallvec::SmallVec;
+
 #[derive(Clone, Copy)]
 struct ScoreState {
     b2b: bool,
@@ -352,21 +355,28 @@ impl SearchContext {
         for p in bag.pieces() {
             pieces.push(p);
         }
-        let mut results = Vec::new();
-        for &piece in pieces.as_slice() {
-            let mut q = *queue;
-            q.push_back(piece);
-            let child = self.tree_imperfect(
-                next_field,
-                &mut q,
-                bag.remove(piece),
-                hold,
-                state,
-                depth + 1,
-                cutoffs,
-            );
-            results.push((piece, child));
-        }
+        let pieces: SmallVec<[Piece; 7]> = pieces.as_slice().iter().copied().collect();
+
+        let collected: Vec<(Piece, Option<Decision>)> = pieces
+            .par_iter()
+            .copied()
+            .map(|piece| {
+                let mut q = *queue;
+                q.push_back(piece);
+                let child = self.tree_imperfect(
+                    next_field,
+                    &mut q,
+                    bag.remove(piece),
+                    hold,
+                    state,
+                    depth + 1,
+                    cutoffs,
+                );
+                (piece, child)
+            })
+            .collect();
+        let results: SmallVec<[(Piece, Option<Decision>); 7]> =
+            SmallVec::from_vec(collected);
 
         for (piece, child) in results {
             let Some(child) = child else {
@@ -389,7 +399,7 @@ impl SearchContext {
         bag: Bag,
         cutoffs: &[u64],
     ) -> Decision {
-        let mut jobs: Vec<RootJob> = Vec::new();
+        let mut jobs: SmallVec<[RootJob; 16]> = SmallVec::new();
 
         for mv in &moves::<true>(field, front) {
             let mut next = field;
@@ -458,9 +468,16 @@ impl SearchContext {
             job: usize::MAX,
         };
 
-        for (job_index, job) in jobs.iter().copied().enumerate() {
-            let candidate = self.tree_root_job(job, queue, bag, cutoffs);
+        let candidates: Vec<(usize, Decision)> = jobs
+            .par_iter()
+            .copied()
+            .enumerate()
+            .map(|(job_index, job)| {
+                (job_index, self.tree_root_job(job, queue, bag, cutoffs))
+            })
+            .collect();
 
+        for (job_index, candidate) in candidates {
             if root_candidate_wins(candidate.cost(), job_index, best.decision.cost(), best.job) {
                 best.decision = candidate;
                 best.job = job_index;
@@ -478,7 +495,7 @@ impl SearchContext {
         for p in bag.pieces() {
             pieces.push(p);
         }
-        let mut results = Vec::new();
+        let mut results: SmallVec<[(Piece, Option<Decision>); 7]> = SmallVec::new();
         for &piece in pieces.as_slice() {
             let mut q = queue;
             q.push_back(piece);

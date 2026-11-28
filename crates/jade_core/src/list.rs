@@ -1,3 +1,5 @@
+//! Small fixed-capacity list.
+
 use std::fmt::Debug;
 use std::mem::MaybeUninit;
 use std::ops::Index;
@@ -27,6 +29,7 @@ where
 }
 
 impl<T, const N: usize> List<T, N> {
+    /// Empty list.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -35,6 +38,7 @@ impl<T, const N: usize> List<T, N> {
         }
     }
 
+    /// Item at index.
     pub const fn get(&self, index: usize) -> Option<&T> {
         if index >= self.len {
             return None;
@@ -42,21 +46,25 @@ impl<T, const N: usize> List<T, N> {
         Some(unsafe { self.data[index].assume_init_ref() })
     }
 
+    /// Append item.
     pub const fn push(&mut self, value: T) {
         assert!(self.len < N);
         self.data[self.len] = MaybeUninit::new(value);
         self.len += 1;
     }
 
+    /// Item count.
     pub const fn len(&self) -> usize {
         self.len
     }
 
+    /// True when empty.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Remove first item.
     pub const fn shift(&mut self) -> Option<T> {
         if self.len == 0 {
             return None;
@@ -73,14 +81,17 @@ impl<T, const N: usize> List<T, N> {
         Some(out)
     }
 
+    /// Clear list.
     pub const fn clear(&mut self) {
         self.len = 0;
     }
 
+    /// Slice of items.
     pub const fn as_slice(&self) -> &[T] {
         unsafe { std::slice::from_raw_parts(self.data.as_ptr().cast::<T>(), self.len) }
     }
 
+    /// Remove last item.
     pub const fn pop(&mut self) -> Option<T> {
         if self.len == 0 {
             return None;
@@ -89,6 +100,7 @@ impl<T, const N: usize> List<T, N> {
         Some(unsafe { self.data[self.len].assume_init_read() })
     }
 
+    /// Iterate items.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.data[..self.len]
             .iter()

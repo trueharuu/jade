@@ -1,3 +1,4 @@
+//! Bag of pieces.
 use std::str::FromStr;
 
 use jade_core::piece::Piece;

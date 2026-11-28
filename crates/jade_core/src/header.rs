@@ -1,17 +1,24 @@
+//! Board constants and masks.
+
 use crate::data::CELLS;
 use crate::piece::Piece;
 use crate::rotation::Rotation;
 
+/// Board width.
 pub const WIDTH: i32 = 10;
+/// Board height.
 pub const LINES: i32 = 6;
+/// Bit count.
 pub const BITS: u32 = 60;
+/// Full board mask.
 pub const MASK: u64 = (1u64 << BITS) - 1;
 
 /// Rows of the play field. The rows above it are a piece movement margin.
 pub const PLAY_LINES: i32 = 4;
 
-/// Spawn column and row of the piece origin.
+/// Spawn column.
 pub const SPAWN_X: i32 = 4;
+/// Spawn row.
 pub const SPAWN_Y: i32 = 4;
 
 /// One full row of `WIDTH` bits at `row`.

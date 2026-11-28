@@ -1,5 +1,7 @@
 #![feature(min_adt_const_params)]
 
+//! Core types and helpers for the jade solver.
+
 pub mod board;
 pub mod data;
 pub mod header;

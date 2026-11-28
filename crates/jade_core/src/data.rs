@@ -1,3 +1,5 @@
+//! Piece geometry data.
+
 use crate::header::MASK;
 use crate::header::WIDTH;
 use crate::piece::Piece;
@@ -15,8 +17,10 @@ pub const fn rot_cell(c: (i8, i8), rot: usize) -> (i8, i8) {
     }
 }
 
+/// Three cell offsets.
 pub type Cells = [(i8, i8); 3];
 
+/// Cell offsets for every piece and rotation.
 pub const CELLS: [[Cells; Rotation::NB]; Piece::NB] = const {
     let mut out = [[[(0, 0); 3]; Rotation::NB]; Piece::NB];
     let pieces = Piece::ALL;
@@ -46,6 +50,7 @@ pub const CELLS: [[Cells; Rotation::NB]; Piece::NB] = const {
 /// position on apply. `width` is unused.
 pub type PlaceMask = (u64, i8, i8, i8);
 
+/// Packed placement masks.
 pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
     let mut out = [[(0u64, 0i8, 0i8, 0i8); Rotation::NB]; Piece::NB];
     let pieces = [
@@ -111,6 +116,7 @@ pub const PMASK: [[PlaceMask; Rotation::NB]; Piece::NB] = const {
     out
 };
 
+/// Placement mask for a piece.
 #[must_use]
 pub const fn place_mask(piece: Piece, rotation: Rotation, x: i32, y: i32) -> u64 {
     let (ox, oy) = piece.canonical_offset(rotation);
@@ -138,6 +144,7 @@ pub type K6 = ([(i8, i8); 6], usize);
 /// Kick table for every initial and final rotation pair.
 pub type Kicks = [[K6; Rotation::NB]; Rotation::NB];
 
+/// Empty kick table entry.
 pub const NULL_KICK: K6 = ([(0, 0); 6], 0);
 
 macro_rules! kick {

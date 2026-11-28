@@ -1,3 +1,5 @@
+//! Perft runner.
+
 use rayon::prelude::*;
 
 use jade_core::board::Board;

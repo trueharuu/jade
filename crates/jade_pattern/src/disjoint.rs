@@ -1,16 +1,21 @@
+//! Disjoint patterns.
+
 use std::str::FromStr;
 
 use crate::Pattern;
 use crate::PatternError;
 
-/// One of two kinds of setup patterns.
+/// Setup pattern.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisjointPattern {
+    /// Mixed pattern.
     Mixed(Pattern),
+    /// Disjoint pair.
     Disjoint(Pattern, Pattern),
 }
 
 impl DisjointPattern {
+    /// Join patterns.
     #[must_use]
     pub fn join(&self) -> Pattern {
         match self {

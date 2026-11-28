@@ -1,3 +1,5 @@
+//! CLI for the jade solver.
+
 use std::collections::BTreeSet;
 use std::fmt::Display;
 
@@ -31,6 +33,7 @@ use jade_score::Options;
 use jade_solve::congruents::congruents;
 use jade_solve::evaluate::Evaluator;
 use jade_solve::fumen::encode_fumen;
+use jade_solve::fumen::encode_placements;
 use jade_solve::fumen::join;
 use jade_solve::fumen::unglue;
 use jade_solve::percent::percent;
@@ -38,20 +41,24 @@ use jade_solve::saves::Saves;
 use jade_solve::setup::setups;
 use jade_solve::solve;
 
+/// jade solver CLI.
 #[derive(clap::Parser)]
 pub struct Program {
     #[clap(subcommand)]
     cmd: Command,
 }
 
+/// Available commands.
 #[derive(clap::Subcommand)]
 pub enum Command {
+    /// Expand or count pattern queues.
     #[clap(subcommand)]
     Pattern(PatternSubcommand),
 
     /// Decide whether the queue can perform a perfect clear on the given field.
     Solve {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Pattern,
         /// Starting field for the solve, as a fumen. Defaults to an empty
         /// field.
@@ -61,8 +68,7 @@ pub enum Command {
         /// field.
         #[arg(long = "2l")]
         two_l: bool,
-        /// Require the hold to hold a piece of this pattern when the field
-        /// fills. Every expansion must be a single piece.
+        /// Pieces allowed as the final hold.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
@@ -75,6 +81,7 @@ pub enum Command {
     /// given field.
     Percent {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Pattern,
         /// Starting field for the solve, as a fumen. Defaults to an empty
         /// field.
@@ -84,8 +91,7 @@ pub enum Command {
         /// field.
         #[arg(long = "2l")]
         two_l: bool,
-        /// Require the hold to hold a piece of this pattern when the field
-        /// fills. Every expansion must be a single piece.
+        /// Pieces allowed as the final hold.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
@@ -98,6 +104,7 @@ pub enum Command {
     /// performing a perfect clear with the remaining pieces.
     Setup {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: DisjointPattern,
 
         /// The amount of pieces to place from `pattern` for the setup.
@@ -116,8 +123,7 @@ pub enum Command {
         #[arg(short, long)]
         limit: Option<usize>,
 
-        /// Require the hold to hold a piece of this pattern when the field
-        /// fills. Every expansion must be a single piece.
+        /// Pieces allowed as the final hold.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
@@ -133,6 +139,7 @@ pub enum Command {
     /// Reports every move sequence that builds the given field.
     Congruents {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Pattern,
 
         /// The field to build.
@@ -144,8 +151,10 @@ pub enum Command {
         hold: Hold,
     },
 
+    /// Report perfect-clear rates by saved piece.
     Saves {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Pattern,
 
         /// Starting field for the solve.
@@ -160,14 +169,14 @@ pub enum Command {
     /// Finds the best scoring paths for a set of queues
     Score {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Pattern,
 
         /// Starting field for the solve as a fumen.
         #[arg(short, long)]
         field: Option<String>,
 
-        /// Require the hold to hold a piece of this pattern when the field
-        /// fills. Every expansion must be a single piece.
+        /// Pieces allowed as the final hold.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
@@ -183,14 +192,14 @@ pub enum Command {
     /// Finds the single best scoring path for a single queue
     Scoring {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Queue,
 
         /// Starting field for the solve as a fumen.
         #[arg(short, long)]
         field: Option<String>,
 
-        /// Require the hold to hold a piece of this pattern when the field
-        /// fills. Every expansion must be a single piece.
+        /// Pieces allowed as the final hold.
         #[arg(short, long, default_value_t = Saves::empty())]
         save: Saves,
 
@@ -199,10 +208,13 @@ pub enum Command {
         hold: Hold,
     },
 
+    /// Build a decision tree for a queue.
     Tree {
         #[arg(short, long)]
+        /// Piece pattern to expand.
         pattern: Queue,
         #[arg(short, long)]
+        /// Bag of pieces for the search.
         bag: Bag,
         /// Starting field.
         #[arg(short, long)]
@@ -215,24 +227,33 @@ pub enum Command {
         partial: bool,
     },
 
+    /// Render fields.
     Render {
+        /// Fields to render.
         fields: Vec<String>,
     },
 }
 
+/// Pattern operations.
 #[derive(clap::Subcommand)]
 pub enum PatternSubcommand {
+    /// Expand a pattern into queues.
     Expand {
+        /// Piece pattern to expand.
         pattern: Pattern,
         #[arg(short, long, default_value_t = String::from("\n"))]
+        /// Separator between expanded queues.
         separator: String,
     },
 
+    /// Count queues in a pattern.
     Count {
+        /// Piece pattern to expand.
         pattern: Pattern,
     },
 }
 
+/// Hold mode (use or avoid).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Hold(bool);
 
@@ -264,6 +285,7 @@ impl Deref for Hold {
     }
 }
 
+/// Letterize.
 #[must_use]
 pub fn letterize(x: usize) -> String {
     // returns `x` as a base-26 string with 'A' as 0, 'B' as 1, ..., 'Z' as 25,
@@ -282,6 +304,7 @@ pub fn letterize(x: usize) -> String {
     s.chars().rev().collect()
 }
 
+/// Main.
 pub fn main() {
     let program = Program::parse();
 
@@ -444,37 +467,7 @@ pub fn main() {
                 let left = if build {
                     let congruent_fumens: Vec<String> = congruents(*board, &[*queue], *hold)
                         .iter()
-                        .map(|x| {
-                            let mut b = Board::empty();
-                            let mut f = Fumen::default();
-                            let mut lc = 0;
-                            for &m in x {
-                                let page = f.add_page();
-                                page.piece = Some(fumen::Piece {
-                                    kind: match m.piece() {
-                                        Piece::I => fumen::PieceType::I,
-                                        Piece::O => fumen::PieceType::O,
-                                        Piece::T => fumen::PieceType::T,
-                                        Piece::L => fumen::PieceType::L,
-                                        Piece::J => fumen::PieceType::J,
-                                        Piece::S => fumen::PieceType::S,
-                                        Piece::Z => fumen::PieceType::Z,
-                                    },
-                                    rotation: match m.rotation() {
-                                        Rotation::North => fumen::RotationState::North,
-                                        Rotation::East => fumen::RotationState::East,
-                                        Rotation::South => fumen::RotationState::South,
-                                        Rotation::West => fumen::RotationState::West,
-                                    },
-                                    x: m.x() as u32,
-                                    y: m.y() as u32 - lc as u32,
-                                });
-                                b |= m.mask();
-                                b = b.clearshift();
-                                lc = b.line_clears();
-                            }
-                            unglue(&f.encode()).unwrap()
-                        })
+                        .map(|x| unglue(&encode_placements(&Board::empty(), x)).unwrap())
                         .collect::<BTreeSet<_>>()
                         .into_iter()
                         .collect();
@@ -497,40 +490,7 @@ pub fn main() {
 
             congruents(target, &queues, *hold)
                 .iter()
-                .map(|x| {
-                    let mut b = Board::empty();
-                    let mut f = Fumen::default();
-                    let mut lc = 0;
-                    for &m in x {
-                        let page = f.add_page();
-
-                        page.piece = Some(fumen::Piece {
-                            kind: match m.piece() {
-                                Piece::I => fumen::PieceType::I,
-                                Piece::O => fumen::PieceType::O,
-                                Piece::T => fumen::PieceType::T,
-                                Piece::L => fumen::PieceType::L,
-                                Piece::J => fumen::PieceType::J,
-                                Piece::S => fumen::PieceType::S,
-                                Piece::Z => fumen::PieceType::Z,
-                            },
-                            rotation: match m.rotation() {
-                                Rotation::North => fumen::RotationState::North,
-                                Rotation::East => fumen::RotationState::East,
-                                Rotation::South => fumen::RotationState::South,
-                                Rotation::West => fumen::RotationState::West,
-                            },
-                            x: m.x() as u32,
-                            y: m.y() as u32 - lc as u32,
-                        });
-
-                        b |= m.mask();
-                        b = b.clearshift();
-                        lc = b.line_clears();
-                    }
-
-                    f.encode()
-                })
+                .map(|x| encode_placements(&Board::empty(), x))
                 .map(|x| unglue(&x).unwrap().clone())
                 .collect::<BTreeSet<_>>()
                 .iter()

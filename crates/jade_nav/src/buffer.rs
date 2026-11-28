@@ -1,14 +1,21 @@
+//! Move buffers.
+
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
 use jade_core::rotation::Rotation;
 use jade_core::spin::Spin;
 
+/// Generated moves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Moves {
+    /// Piece.
     pub piece: Piece,
+    /// No-spin moves.
     pub none: [Board; Rotation::NB],
+    /// Mini-spin moves.
     pub mini: [Board; Rotation::NB],
+    /// Full-spin moves.
     pub full: [Board; Rotation::NB],
 }
 
@@ -60,7 +67,7 @@ impl Moves {
     }
 }
 
-// An iterator over the moves in a [`Moves`] buffer.
+/// Iterator over moves.
 pub struct MovesIter<'a> {
     moves: &'a Moves,
     spin: usize,

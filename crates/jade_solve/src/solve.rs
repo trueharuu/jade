@@ -1,3 +1,5 @@
+//! Solve.
+
 use std::cell::RefCell;
 
 use jade_core::board::Board;
@@ -51,6 +53,7 @@ impl Default for Solver {
 }
 
 impl Solver {
+    /// New solver.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -303,6 +306,7 @@ pub fn reachable(board: Board, queue: &[Piece], two_l: bool, saves: Saves, hold:
 pub struct Node(u64);
 
 impl Node {
+    /// New node.
     #[must_use]
     pub const fn new(board: Board, hold: Option<Piece>, depth: u8) -> Self {
         let hold = match hold {
@@ -313,11 +317,13 @@ impl Node {
         Node(board.0 | (hold << 40) | (depth << 44))
     }
 
+    /// Board.
     #[must_use]
     pub const fn board(&self) -> Board {
         Board(self.0 & ((1 << 40) - 1))
     }
 
+    /// Hold.
     #[must_use]
     pub const fn hold(&self) -> Option<Piece> {
         let hold = (self.0 >> 40) & 0xf;
@@ -329,6 +335,7 @@ impl Node {
         }
     }
 
+    /// Depth.
     #[must_use]
     pub const fn depth(&self) -> u8 {
         ((self.0 >> 44) & 0xf) as u8

@@ -1,3 +1,5 @@
+//! Low-level operators.
+
 use jade_core::board::Board;
 use jade_core::data::CELLS;
 use jade_core::data::KICKS_I;
@@ -13,6 +15,7 @@ use jade_core::rot_idx;
 use jade_core::rotation::Rotation;
 use jade_core::spin::Spin;
 
+/// Check placement.
 #[inline]
 #[must_use]
 pub const fn check<const P: Piece>(
@@ -66,6 +69,7 @@ pub fn usable_rot<const P: Piece, const R: Rotation>(b: &Board, nb: &Board) -> B
 }
 
 /// Builds usable-position maps for every canonical rotation of `P`.
+/// Usable map.
 #[inline]
 #[must_use]
 pub fn usable_map<const P: Piece>(b: &Board) -> [Board; Rotation::NB] {
@@ -125,6 +129,7 @@ pub(crate) fn fit_map<const P: Piece>() -> [Board; Rotation::NB] {
 }
 
 /// Converts usable maps into landable maps by requiring support directly below.
+/// Landable map.
 #[inline]
 #[must_use]
 pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::NB] {
@@ -137,6 +142,7 @@ pub fn landable_map(u: &[Board; Rotation::NB], cs: usize) -> [Board; Rotation::N
 
 /// Attempts to rotate `mv` to `target`, applying the first valid kick; returns
 /// the original move when no kick succeeds.
+/// Apply rotation.
 #[inline]
 #[must_use]
 pub fn apply_rotation<const P: Piece>(
@@ -171,6 +177,7 @@ pub fn apply_rotation<const P: Piece>(
     (*mv, 4)
 }
 
+/// Unroll loop.
 #[macro_export]
 macro_rules! unroll {
     ($r:ident, $limit:expr, $body:block) => {{
@@ -235,6 +242,7 @@ pub fn horizontal_tuck(s: Board, usable: &Board) -> Board {
 
 // spin detection maps
 
+/// T corners.
 #[inline]
 #[must_use]
 pub fn t_corners(b: &Board) -> (Board, [Board; Rotation::NB]) {

@@ -1,12 +1,12 @@
 //! Checks `jade_solve` against a recorded fixture.
 //!
 //! Usage:
-//!   check <fixture>
+//!   check `<fixture>`
 //!
 //! Fixture format:
-//!   <fumen> <pattern> <success>/<total>   first line; the pattern may
+//!   `<fumen>` `<pattern>` `<success>`/`<total>`   first line; the pattern may
 //!                                         contain spaces
-//!   <queue>,<true|false>                  one line per queue that the
+//!   `<queue>`,<true|false>                  one line per queue that the
 //!                                         pattern expands to
 //!
 //! Exit status: 0 = every queue matches, 1 = a mismatch or a failed

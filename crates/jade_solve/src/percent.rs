@@ -1,3 +1,5 @@
+//! Percent solver.
+
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 // use rayon::prelude::*;

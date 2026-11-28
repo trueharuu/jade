@@ -1,3 +1,5 @@
+//! Evaluation.
+
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
@@ -47,6 +49,7 @@ pub struct Evaluator {
 }
 
 impl Evaluator {
+    /// New evaluator.
     #[must_use]
     pub fn new(cutoff: Option<f64>) -> Self {
         Self::with_limit(cutoff, 1)

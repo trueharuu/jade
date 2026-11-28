@@ -1,15 +1,19 @@
+//! Ring buffer queue.
+
 use std::mem::MaybeUninit;
 
 const CAP: usize = 4096;
 const MASK: usize = CAP - 1;
 
-pub struct Queue<T> {
+/// Ring buffer queue.
+pub struct Fifo<T> {
     buf: [MaybeUninit<T>; CAP],
     front: usize,
     back: usize,
 }
 
-impl<T> Queue<T> {
+impl<T> Fifo<T> {
+    /// Empty queue.
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
@@ -21,6 +25,7 @@ impl<T> Queue<T> {
         }
     }
 
+    /// Append item.
     #[inline]
     pub const fn push_back(&mut self, val: T) {
         assert!(self.back - self.front != CAP, "queue full");
@@ -28,6 +33,7 @@ impl<T> Queue<T> {
         self.back = self.back.wrapping_add(1);
     }
 
+    /// Remove first item.
     #[inline]
     pub const fn pop_front(&mut self) -> Option<T> {
         if self.front == self.back {
@@ -38,6 +44,7 @@ impl<T> Queue<T> {
         Some(val)
     }
 
+    /// True when empty.
     #[inline]
     #[must_use]
     pub const fn is_empty(&self) -> bool {
@@ -45,7 +52,7 @@ impl<T> Queue<T> {
     }
 }
 
-impl<T> Default for Queue<T> {
+impl<T> Default for Fifo<T> {
     fn default() -> Self {
         Self::new()
     }

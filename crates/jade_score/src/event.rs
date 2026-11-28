@@ -1,23 +1,26 @@
+//! Scoring events.
+
 use std::fmt::Display;
 
 use jade_core::spin::Spin;
 
-// things that affect score:
-// b2b
-// combo
-// spin type
-// line count
-// level (not counted here)
+/// Scoring event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Event {
+    /// B2B.
     pub b2b: bool,
+    /// Combo.
     pub combo: Option<u32>,
+    /// Spin.
     pub spin: Spin,
+    /// Lines.
     pub lines: u32,
+    /// Perfect clear.
     pub pc: bool,
 }
 
 impl Event {
+    /// Score.
     #[must_use]
     pub const fn score(&self) -> u32 {
         debug_assert!(self.lines <= 4);

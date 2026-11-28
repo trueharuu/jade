@@ -19,7 +19,7 @@ use jade_solve::Saves;
 use score::CELLS_PER_PIECE;
 use score::PC_CELLS;
 
-/// The highest-scoring solution found by [`best_with_options`].
+/// The highest-scoring solution found by [`Options::best`].
 #[derive(Debug, Clone, Copy)]
 pub struct BestResult {
     /// The move sequence, in placement order.
@@ -38,18 +38,24 @@ pub struct BestResult {
 #[derive(Clone, Copy)]
 pub struct Options {
     /// Accept the 2-line goal board as well as the 4-line goal board.
+    /// Accept 2-line goal.
     pub two_l: bool,
+    /// Save filter.
     pub saves: Saves,
+    /// Hold enabled.
     pub hold_enabled: bool,
     /// Ignored when `hold_enabled` is `false`.
     pub initial_hold: Option<Piece>,
+    /// Initial B2B.
     pub initial_b2b: bool,
+    /// Initial combo.
     pub initial_combo: Option<u32>,
     /// When true, non-perfect-clear paths may be returned as partial results.
     pub partial: bool,
 }
 
 impl Options {
+    /// New options.
     #[must_use]
     pub const fn new(two_l: bool, saves: Saves, hold_enabled: bool) -> Self {
         Self {
@@ -63,6 +69,7 @@ impl Options {
         }
     }
 
+    /// Best result.
     #[must_use]
     pub fn best(&self, board: Board, queue: &[Piece]) -> Option<BestResult> {
         let board = board.clearshift();

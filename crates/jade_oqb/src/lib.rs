@@ -1,7 +1,10 @@
+//! OQB.
+
 pub mod bag;
 pub mod decision;
 pub mod search;
 
+/// Bag.
 pub use bag::Bag;
 pub mod serde;
 
@@ -17,6 +20,7 @@ use jade_solve::saves::Saves;
 use crate::decision::Decision;
 use crate::search::DecisionSearch;
 
+/// Cutoffs.
 #[must_use]
 pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
     let count = (12 - placed as isize - see as isize).max(1) as usize;
@@ -31,12 +35,7 @@ pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
     cutoffs
 }
 
-/// Evaluates a fully known suffix.
-///
-/// Returns the best score and one move sequence that achieves it.
-/// Evaluates a fully known suffix.
-///
-/// Returns the best score and one move sequence that achieves it.
+/// Score suffix.
 #[must_use]
 pub fn score_suffix(
     field: Board,
@@ -57,6 +56,7 @@ pub fn score_suffix(
     }
 }
 
+/// OQB.
 #[must_use]
 pub fn oqb(
     field: Board,

@@ -1,3 +1,5 @@
+//! Fumen helpers.
+
 use fumen::CellColor;
 use fumen::Fumen;
 use jade_core::board::Board;
@@ -61,6 +63,7 @@ pub fn encode_fumen(board: &Board) -> String {
     f.encode()
 }
 
+/// Encode placements.
 #[must_use]
 pub fn encode_placements(b: &Board, m: &[Move]) -> String {
     let mut board = *b;

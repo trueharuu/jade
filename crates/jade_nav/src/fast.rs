@@ -1,3 +1,5 @@
+//! Fast move generation.
+
 use jade_core::board::Board;
 use jade_core::data::KICKS_I;
 use jade_core::data::KICKS_TJLSZ;
@@ -12,6 +14,7 @@ use crate::op::t_corners;
 use crate::op::usable_map;
 use crate::unroll;
 
+/// Generate moves.
 #[inline]
 #[must_use]
 pub fn generate<const P: Piece, const SPINS: bool>(board: &Board) -> Moves {

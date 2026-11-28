@@ -1,3 +1,5 @@
+//! Board bitboard.
+
 use std::ops::BitAnd;
 use std::ops::BitAndAssign;
 use std::ops::BitOr;
@@ -262,7 +264,7 @@ impl Board {
         self.clearshift_with_count().0
     }
 
-    /// Like [`clearshift`], but also returns the number of cleared rows.
+    /// Like [`Self::clearshift`], but also returns the number of cleared rows.
     #[inline]
     #[must_use]
     pub const fn clearshift_with_count(self) -> (Self, i32) {
@@ -326,6 +328,7 @@ impl Board {
         (Self(out), total_filled as i32)
     }
 
+    /// Number of full rows.
     #[inline]
     #[must_use]
     pub const fn line_clears(self) -> i32 {

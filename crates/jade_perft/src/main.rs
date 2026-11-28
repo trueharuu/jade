@@ -1,3 +1,5 @@
+//! Perft CLI.
+
 use std::time::Instant;
 
 use clap::Parser;

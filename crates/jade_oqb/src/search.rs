@@ -1,3 +1,5 @@
+//! Decision search.
+
 use jade_core::board::Board;
 use jade_core::list::List;
 use jade_core::piece::Piece;
@@ -43,17 +45,20 @@ struct SearchContext {
     partial: bool,
 }
 
+/// Root best.
 pub struct RootBest {
     decision: Decision,
     job: usize,
 }
 
+/// Decision search.
 pub struct DecisionSearch {
     context: SearchContext,
     initial_hold: Option<Piece>,
 }
 
 impl DecisionSearch {
+    /// New search.
     #[must_use]
     pub const fn new(
         two_l: bool,
@@ -73,6 +78,7 @@ impl DecisionSearch {
         }
     }
 
+    /// Solve.
     #[must_use]
     pub fn solve(&self, field: Board, mut queue: Queue, bag: Bag, cutoffs: &[u64]) -> Decision {
         assert!(

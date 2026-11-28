@@ -1,3 +1,5 @@
+//! Serialization.
+
 use std::io::Write;
 use std::io::{self};
 

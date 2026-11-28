@@ -1,3 +1,5 @@
+//! BFS move generation.
+
 use jade_core::board::Board;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
@@ -10,16 +12,17 @@ use crate::op::check;
 use crate::op::fit_map;
 use crate::op::t_corners;
 use crate::op::usable_map;
-use crate::queue::Queue;
+use crate::queue::Fifo;
 
 /// BFS move generation for a single piece, returning all reachable
 /// landed positions on the given board. A placement is reported only when
 /// every one of its cells lands in the play field (the bottom `PLAY_LINES`
 /// rows), over which the board can be filled.
+/// Generate moves.
 #[inline]
 #[must_use]
 pub fn generate<const P: Piece>(board: &Board) -> Moves {
-    let mut queue = Queue::new();
+    let mut queue = Fifo::new();
     let mut visited: Moves = Moves::empty(P);
     let mut landed = Moves::empty(P);
 
@@ -158,6 +161,7 @@ pub fn generate<const P: Piece>(board: &Board) -> Moves {
     landed
 }
 
+/// Label spin.
 #[inline]
 #[must_use]
 pub const fn label_spin<const P: Piece>(mv: Move, c3: Board, cf: Board, k_idx: usize) -> Spin {

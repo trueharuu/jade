@@ -4,7 +4,7 @@
 //! fixed to a perfect clear. Where `solve` stops at the first success and
 //! caches failures, this enumerates every success and caches reachability.
 //!
-//! Hold is resolved before the board search. [`crate::percent::walk`] turns
+//! Hold is resolved before the board search. `percent::walk` turns
 //! each queue into the piece orders its hold schedules can produce, and the
 //! board search then runs over one fixed order at a time. Orders that share a
 //! prefix share the work below it, which is what the suffix-keyed memo buys.

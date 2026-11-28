@@ -4,6 +4,9 @@ members = [
     "crates/*",
 ]
 
+[workspace.lints.rust]
+missing_docs = { level = "warn" }
+
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = 1 }
 perf = { level = "deny", priority = 1 }

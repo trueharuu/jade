@@ -1,3 +1,5 @@
+//! Perft.
+
 use fumen::CellColor;
 use fumen::Fumen;
 use jade_core::board::Board;
@@ -5,6 +7,7 @@ use jade_core::board::Board;
 pub mod model;
 pub mod perft;
 
+/// Human number.
 #[inline]
 #[must_use]
 pub fn human(value: f64) -> String {
@@ -21,6 +24,7 @@ pub fn human(value: f64) -> String {
     }
 }
 
+/// Parse fumen.
 pub fn parse_fumen(s: &str) -> Result<Board, String> {
     let f = Fumen::decode(s).map_err(|x| x.to_string())?;
     if f.pages.len() != 1 {

@@ -1,3 +1,5 @@
+//! Perft model.
+
 use std::fmt;
 
 use clap::ValueEnum;
@@ -11,7 +13,9 @@ use jade_nav::oracle;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 pub enum Model {
     #[default]
+    /// Oracle.
     Oracle,
+    /// Fast.
     Fast,
 }
 

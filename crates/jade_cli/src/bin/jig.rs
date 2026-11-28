@@ -1,3 +1,5 @@
+//! Jig.
+
 use fumen::CellColor;
 use fumen::Fumen;
 use jade_core::piece::Piece;
@@ -5,6 +7,7 @@ use jade_pattern::Pattern;
 use jade_solve::Saves;
 use jade_solve::parse_fumen;
 
+/// Main.
 pub fn main() {
     let base = [
         (

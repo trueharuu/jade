@@ -1,3 +1,5 @@
+//! Piece queues.
+
 use std::fmt;
 use std::hash::Hash;
 use std::ops::Deref;

@@ -1,3 +1,5 @@
+//! Pattern language.
+
 pub mod disjoint;
 
 use itertools::Itertools;
@@ -7,49 +9,77 @@ use jade_core::queue::Queue;
 use std::collections::BTreeSet;
 use std::fmt::Display;
 
-// X;Y
+/// Pattern.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Pattern(pub Vec<Segment>);
 
+/// Segment.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Segment {
-    Single(Piece),                // X
-    Sequence(Vec<Self>),          // XY or X,Y
-    Group(Box<Self>),             // (X)
-    Bag(Vec<Self>),               // [XYZ], the set of pieces X, Y, and Z
-    Except(Vec<Self>),            // [^XYZ], which is [TIJLOSZ] \ {X, Y, Z}
-    Wildcard,                     // *, is exactly [TIJLOSZ]
-    Permute(Box<Self>, usize),    // XpN, returns all permutations of N elements from X
-    Choose(Box<Self>, usize),     // XcN, returns all combinations of N elements from X
-    All(Box<Self>),               // X! returns all permutations of all elements in X
-    Filter(Box<Self>, Condition), // X{C} returns all elements of X that satisfy condition C
+    /// Single piece.
+    Single(Piece),
+    /// Sequence.
+    Sequence(Vec<Self>),
+    /// Group.
+    Group(Box<Self>),
+    /// Bag.
+    Bag(Vec<Self>),
+    /// Except.
+    Except(Vec<Self>),
+    /// Wildcard.
+    Wildcard,
+    /// Permute.
+    Permute(Box<Self>, usize),
+    /// Choose.
+    Choose(Box<Self>, usize),
+    /// All.
+    All(Box<Self>),
+    /// Filter.
+    Filter(Box<Self>, Condition),
 }
 
+/// Condition.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Condition {
-    And(Vec<Self>),                                // X & Y
-    Or(Vec<Self>),                                 // X | Y
-    Not(Box<Self>),                                // !X
-    Order(Box<Pattern>, Box<Pattern>, Comparator), // X < Y, X > Y, X <= Y, X >= Y, X == Y, X != Y
-    Count(Box<Pattern>, usize, Comparator),        // X < N, X > N, X <= N, X >= N, X == N, X != N
-    Exists(Box<Pattern>),                          // X?, i.e. count(X) > 0
-    /// X@<N, the start index of some match of X compared with N.
+    /// And.
+    And(Vec<Self>),
+    /// Or.
+    Or(Vec<Self>),
+    /// Not.
+    Not(Box<Self>),
+    /// Order.
+    Order(Box<Pattern>, Box<Pattern>, Comparator),
+    /// Count.
+    Count(Box<Pattern>, usize, Comparator),
+    /// Exists.
+    Exists(Box<Pattern>),
+    /// Position.
     Position(Box<Pattern>, usize, Comparator),
 }
 
+/// Comparator.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Comparator {
+    /// Equal.
     Eq,
+    /// Not equal.
     Ne,
+    /// Greater.
     Gt,
+    /// Less.
     Lt,
+    /// Greater or equal.
     Ge,
+    /// Less or equal.
     Le,
 }
 
+/// Pattern error.
 #[derive(Debug)]
 pub enum PatternError {
+    /// Parse error.
     ParseError(String),
+    /// Invalid pattern.
     InvalidPattern(String),
 }
 
@@ -65,6 +95,7 @@ impl std::fmt::Display for PatternError {
 }
 
 impl Pattern {
+    /// Expand.
     #[must_use]
     pub fn expand(&self) -> BTreeSet<Queue> {
         let mut result = BTreeSet::new();
@@ -117,6 +148,7 @@ impl std::str::FromStr for Pattern {
 }
 
 impl Segment {
+    /// Expand.
     #[must_use]
     pub fn expand(&self) -> Vec<Queue> {
         match self {
@@ -205,6 +237,7 @@ impl Segment {
         }
     }
 
+    /// Size.
     #[inline]
     #[must_use]
     pub fn size(&self) -> usize {
@@ -220,6 +253,7 @@ impl Segment {
 }
 
 impl Condition {
+    /// Evaluate.
     #[must_use]
     pub fn evaluate(&self, pieces: &[Piece]) -> bool {
         match self {
@@ -261,6 +295,7 @@ impl Condition {
         }
     }
 
+    /// Size.
     pub fn size(&self) -> usize {
         match self {
             Condition::And(conditions) | Condition::Or(conditions) => {
@@ -331,6 +366,7 @@ fn count_occurrences(pattern: &Pattern, pieces: &[Piece]) -> usize {
 }
 
 #[must_use]
+/// Compare counts.
 pub const fn compare_count(count: usize, n: usize, comparator: Comparator) -> bool {
     match comparator {
         Comparator::Eq => count == n,

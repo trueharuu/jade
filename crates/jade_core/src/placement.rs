@@ -1,3 +1,5 @@
+//! Packed moves.
+
 use std::fmt::Display;
 
 use crate::board::Board;
@@ -10,6 +12,7 @@ use crate::spin::Spin;
 // rotation=0..3 (2 bits)
 // piece=0..6 (3 bits)
 // spin=0..2 (2 bits)
+/// Packed placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Move(u32);
 

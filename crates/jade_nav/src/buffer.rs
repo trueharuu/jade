@@ -78,29 +78,43 @@ impl Iterator for MovesIter<'_> {
 
         while self.spin < 3 {
             while self.rotation < Rotation::NB {
-                while self.y < jade_core::header::LINES {
-                    while self.x < jade_core::header::WIDTH {
-                        let board = match self.spin {
-                            0 => self.moves.none[self.rotation],
-                            1 => self.moves.mini[self.rotation],
-                            _ => self.moves.full[self.rotation],
-                        };
-                        if board.get(self.x, self.y) {
-                            let mv = Move::new(
-                                self.moves.piece,
-                                self.x,
-                                self.y,
-                                Rotation::from_u8(self.rotation as u8),
-                                SPINS[self.spin],
-                            );
-                            self.x += 1;
-                            return Some(mv);
-                        }
-                        self.x += 1;
-                    }
-                    self.x = 0;
-                    self.y += 1;
+                let board = match self.spin {
+                    0 => self.moves.none[self.rotation],
+                    1 => self.moves.mini[self.rotation],
+                    _ => self.moves.full[self.rotation],
+                };
+
+                let start = (self.y as usize * 10 + self.x as usize) as u32;
+                let mask = if start >= 60 {
+                    0u64
+                } else {
+                    board.0 >> start
+                };
+
+                if mask != 0 {
+                    let tz = mask.trailing_zeros();
+                    let idx = start + tz;
+                    let x = (idx % 10) as i32;
+                    let y = (idx / 10) as i32;
+
+                    let mv = Move::new(
+                        self.moves.piece,
+                        x,
+                        y,
+                        Rotation::from_u8(self.rotation as u8),
+                        SPINS[self.spin],
+                    );
+
+                    // Advance to the cell after the one just returned.
+                    let next = idx + 1;
+                    self.x = (next % 10) as i32;
+                    self.y = (next / 10) as i32;
+
+                    return Some(mv);
                 }
+
+                // No more set bits in this rotation.
+                self.x = 0;
                 self.y = 0;
                 self.rotation += 1;
             }

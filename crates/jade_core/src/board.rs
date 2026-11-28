@@ -205,30 +205,63 @@ impl Board {
     pub const fn has_imbalanced_split(self) -> bool {
         // Column 0 across the play-field rows.
         const COL_0: u64 = col_mask(0) & rows_below(PLAY_LINES);
+        const COL_1: u64 = COL_0 << 1;
+        const COL_2: u64 = COL_0 << 2;
+        const COL_3: u64 = COL_0 << 3;
+        const COL_4: u64 = COL_0 << 4;
+        const COL_5: u64 = COL_0 << 5;
+        const COL_6: u64 = COL_0 << 6;
+        const COL_7: u64 = COL_0 << 7;
+
+        const LEFT_1: u64 = COL_0 | COL_1;
+        const LEFT_2: u64 = LEFT_1 | COL_2;
+        const LEFT_3: u64 = LEFT_2 | COL_3;
+        const LEFT_4: u64 = LEFT_3 | COL_4;
+        const LEFT_5: u64 = LEFT_4 | COL_5;
+        const LEFT_6: u64 = LEFT_5 | COL_6;
+        const LEFT_7: u64 = LEFT_6 | COL_7;
 
         let b = self.0 & rows_below(PLAY_LINES);
 
-        let mut col_bits = COL_0;
-        let mut left_bits = COL_0;
+        // Every row of the seam between `col` and `col + 1` cells has a
+        // filled cell, so cells left of the seam cannot reach cells right
+        // of it.  A left region has 4*cols cells, so its empty count is a
+        // multiple of four exactly when the filled count is.
 
-        let mut col = 1;
-        while col <= 7 {
-            col_bits <<= 1;
-            left_bits |= col_bits;
-
-            // Every row of the seam between `col` and `col + 1` cells has a
-            // filled cell, so cells left of the seam cannot reach cells right
-            // of it.
-            if ((b | (b >> 1)) & col_bits) == col_bits {
-                // A left region has 4*cols cells, so its empty count is a
-                // multiple of four exactly when the filled count is.
-                let left = b & left_bits;
-                if !left.count_ones().is_multiple_of(4) {
-                    return true;
-                }
-            }
-
-            col += 1;
+        if ((b | (b >> 1)) & COL_1) == COL_1
+            && !(b & LEFT_1).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_2) == COL_2
+            && !(b & LEFT_2).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_3) == COL_3
+            && !(b & LEFT_3).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_4) == COL_4
+            && !(b & LEFT_4).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_5) == COL_5
+            && !(b & LEFT_5).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_6) == COL_6
+            && !(b & LEFT_6).count_ones().is_multiple_of(4)
+        {
+            return true;
+        }
+        if ((b | (b >> 1)) & COL_7) == COL_7
+            && !(b & LEFT_7).count_ones().is_multiple_of(4)
+        {
+            return true;
         }
 
         false

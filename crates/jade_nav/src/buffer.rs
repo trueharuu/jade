@@ -85,11 +85,7 @@ impl Iterator for MovesIter<'_> {
                 };
 
                 let start = (self.y as usize * 10 + self.x as usize) as u32;
-                let mask = if start >= 60 {
-                    0u64
-                } else {
-                    board.0 >> start
-                };
+                let mask = if start >= 60 { 0u64 } else { board.0 >> start };
 
                 if mask != 0 {
                     let tz = mask.trailing_zeros();

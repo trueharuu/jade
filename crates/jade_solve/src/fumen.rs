@@ -161,7 +161,8 @@ pub fn unglue(f: &str) -> Result<String, String> {
         // Every cell must be on the field. The source fails here for any
         // cell outside the field, including above the top.
         if cells.iter().any(|&(cx, cy)| {
-            !(0..WIDTH).contains(&(x + i32::from(cx))) || !(0..HEIGHT).contains(&(y + i32::from(cy)))
+            !(0..WIDTH).contains(&(x + i32::from(cx)))
+                || !(0..HEIGHT).contains(&(y + i32::from(cy)))
         }) {
             return Err("one of the pieces goes off the field".to_string());
         }

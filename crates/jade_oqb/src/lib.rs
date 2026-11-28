@@ -6,16 +6,16 @@ pub use bag::Bag;
 pub mod serde;
 
 use jade_core::board::Board;
+use jade_core::list::List;
 use jade_core::piece::Piece;
 use jade_core::placement::Move;
+use jade_core::queue::CAP;
 use jade_core::queue::Queue;
 use jade_score::event::Event;
 use jade_solve::saves::Saves;
 
 use crate::decision::Decision;
 use crate::search::DecisionSearch;
-use jade_core::list::List;
-use jade_core::queue::CAP;
 
 #[must_use]
 pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
@@ -31,6 +31,9 @@ pub fn cutoffs(placed: usize, see: usize, bag: Bag) -> Vec<u64> {
     cutoffs
 }
 
+/// Evaluates a fully known suffix.
+///
+/// Returns the best score and one move sequence that achieves it.
 /// Evaluates a fully known suffix.
 ///
 /// Returns the best score and one move sequence that achieves it.

@@ -360,8 +360,7 @@ impl SearchContext {
         let cells = next_field.popcount();
         let k = pieces_to_goal(cells, self.two_l);
         let need = k + usize::from(self.hold_enabled);
-        let last_level = depth + 1 >= cutoffs.len().saturating_sub(1)
-            || (queue.len() + 1) >= need;
+        let last_level = depth + 1 >= cutoffs.len().saturating_sub(1) || (queue.len() + 1) >= need;
 
         let collected: Vec<(Piece, Option<Decision>)> = if last_level {
             pieces
@@ -431,8 +430,7 @@ impl SearchContext {
                 })
                 .collect()
         };
-        let results: SmallVec<[(Piece, Option<Decision>); 7]> =
-            SmallVec::from_vec(collected);
+        let results: SmallVec<[(Piece, Option<Decision>); 7]> = SmallVec::from_vec(collected);
 
         for (piece, child) in results {
             let Some(child) = child else {
@@ -528,9 +526,7 @@ impl SearchContext {
             .par_iter()
             .copied()
             .enumerate()
-            .map(|(job_index, job)| {
-                (job_index, self.tree_root_job(job, queue, bag, cutoffs))
-            })
+            .map(|(job_index, job)| (job_index, self.tree_root_job(job, queue, bag, cutoffs)))
             .collect();
 
         for (job_index, candidate) in candidates {

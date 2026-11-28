@@ -1,4 +1,5 @@
-use fumen::{CellColor, Fumen};
+use fumen::CellColor;
+use fumen::Fumen;
 use jade_core::board::Board;
 
 pub mod model;

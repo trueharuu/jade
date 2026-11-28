@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use jade_core::board::Board;
 use jade_core::piece::Piece;
@@ -348,8 +349,12 @@ fn setup_boards<'a>(n: usize, orders: &[u64], memo: &'a mut Memo, s: &'a mut Scr
         s.merged.clear();
         // `merged` keeps the capacity of the largest group, so this reserve
         // is free after the first group.
-        s.merged
-            .reserve(s.parents[last].iter().map(|&i| memo.sets[i as usize].len()).sum());
+        s.merged.reserve(
+            s.parents[last]
+                .iter()
+                .map(|&i| memo.sets[i as usize].len())
+                .sum(),
+        );
         for &i in &s.parents[last] {
             s.merged.extend_from_slice(&memo.sets[i as usize]);
         }

@@ -184,10 +184,7 @@ fn check_each(board: Board, rows: &[Row], total: usize) -> usize {
                 let actual = reachable(board, q, false, Saves::empty(), true);
                 (actual != row.recorded).then(|| {
                     let name = q.iter().map(ToString::to_string).collect::<String>();
-                    format!(
-                        "{name} expected {} but got {actual}",
-                        row.recorded
-                    )
+                    format!("{name} expected {} but got {actual}", row.recorded)
                 })
             }
             Err(e) => Some(format!("line {}: {e}", i + 2)),

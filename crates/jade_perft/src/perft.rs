@@ -77,4 +77,3 @@ fn run_parallel(model: Model, board: Board, queue: &Queue) -> u64 {
             .map(|b| subtree(model, *b, tail))
             .sum::<u64>()
 }
-

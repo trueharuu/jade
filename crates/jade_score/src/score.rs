@@ -16,7 +16,6 @@ pub(super) const CELLS_PER_PIECE: u32 = 4;
 // values. A value that is too low makes `remaining_bound` unsafe: the search
 // could then discard the best path.
 
-
 /// Back-to-back and combo state carried along a path.
 #[derive(Clone, Copy)]
 pub(super) struct ScoreState {
@@ -38,7 +37,13 @@ impl ScoreState {
                 lines,
                 pc,
             };
-            return (Self { b2b: self.b2b, combo: None }, event);
+            return (
+                Self {
+                    b2b: self.b2b,
+                    combo: None,
+                },
+                event,
+            );
         }
 
         let difficult = spin != Spin::None || lines == 4;
@@ -50,8 +55,12 @@ impl ScoreState {
             lines,
             pc,
         };
-        (Self { b2b: difficult, combo }, event)
+        (
+            Self {
+                b2b: difficult,
+                combo,
+            },
+            event,
+        )
     }
 }
-
-

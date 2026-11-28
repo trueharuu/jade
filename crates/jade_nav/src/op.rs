@@ -161,7 +161,10 @@ pub fn apply_rotation<const P: Piece>(
         let new_x = mv.x() + dx;
         let new_y = mv.y() + dy;
         if check::<P>(usable, new_x, new_y, target as usize) {
-            return (Move::new(mv.piece(), new_x, new_y, target, Spin::None), kick_idx);
+            return (
+                Move::new(mv.piece(), new_x, new_y, target, Spin::None),
+                kick_idx,
+            );
         }
     }
 

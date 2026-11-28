@@ -53,7 +53,9 @@ pub fn generate<const P: Piece, const SPINS: bool>(board: &Board) -> Moves {
     let mut search = [Board::empty(); Rotation::NB];
     let mut unsearched = [Board::empty(); Rotation::NB];
 
-    unroll!(r, ss, { unsearched[r] = fit[r]; });
+    unroll!(r, ss, {
+        unsearched[r] = fit[r];
+    });
 
     search[0].set(sx, sy);
     unsearched[0].0 &= !(1u64 << (sy * 10 + sx));

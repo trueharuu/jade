@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use jade_core::piece::Piece;
 
-
 /// A set of hidden pieces, stored as one bit per piece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bag(u8);

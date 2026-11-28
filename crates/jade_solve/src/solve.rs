@@ -14,7 +14,8 @@ use crate::saves::save_ok;
 /// Failure cache size is `2^CACHE_BITS` words (128 KB at 14 bits).
 const CACHE_BITS: u32 = 14;
 const CACHE_LEN: usize = 1 << CACHE_BITS;
-/// A `Node` uses 48 bits. The upper 16 bits of a cache word hold the generation.
+/// A `Node` uses 48 bits. The upper 16 bits of a cache word hold the
+/// generation.
 const KEY_MASK: u64 = (1 << 48) - 1;
 const HASH_MUL: u64 = 0x9E37_79B9_7F4A_7C15;
 
@@ -54,10 +55,7 @@ impl Solver {
     pub fn new() -> Self {
         Self {
             // The `try_into` cannot fail: the length is `CACHE_LEN`.
-            table: vec![0u64; CACHE_LEN]
-                .into_boxed_slice()
-                .try_into()
-                .unwrap(),
+            table: vec![0u64; CACHE_LEN].into_boxed_slice().try_into().unwrap(),
             generation: 0,
         }
     }
@@ -76,7 +74,8 @@ impl Solver {
     /// Returns `true` if `word` is already cached. Otherwise stores it.
     #[inline(always)]
     fn seen(&mut self, word: u64) -> bool {
-        // The index is below `CACHE_LEN` by construction (top `CACHE_BITS` bits).
+        // The index is below `CACHE_LEN` by construction (top `CACHE_BITS`
+        // bits).
         let i = ((word & KEY_MASK).wrapping_mul(HASH_MUL) >> (64 - CACHE_BITS)) as usize;
         let slot = &mut self.table[i];
         if *slot == word {
@@ -100,7 +99,10 @@ impl Solver {
         assert!(queue.len() <= CAP);
         // A full row above an empty cell is not a state the search can reach.
         // The caller must pass a board that `clearshift` does not change.
-        debug_assert!(board.clearshift() == board, "root board is not clearshifted");
+        debug_assert!(
+            board.clearshift() == board,
+            "root board is not clearshifted"
+        );
 
         let cells = board.0.count_ones();
         if !cells.is_multiple_of(4) {
@@ -218,7 +220,8 @@ impl Solver {
         // which is the main cost.
         let goal20 = ctx.two_l && cells == 20 && save_ok(ctx.saves, hold, active);
         let k = pieces_to_goal(cells, ctx.two_l);
-        // With empty hold and a save set, one more piece must remain as leftover.
+        // With empty hold and a save set, one more piece must remain as
+        // leftover.
         let extra = usize::from(!ctx.saves.is_empty() && hold.is_none());
         // The held piece is not part of the queue, so it is one more piece that
         // can still be placed. Counting only queue slots here rejects solves
@@ -241,7 +244,8 @@ impl Solver {
                 continue;
             }
 
-            // Bits at or above bit 40 would overwrite the hold and depth fields.
+            // Bits at or above bit 40 would overwrite the hold and depth
+            // fields.
             if outside_playfield(next) {
                 continue;
             }

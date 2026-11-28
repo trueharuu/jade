@@ -64,4 +64,3 @@ fn fast_moves(piece: Piece, board: Board) -> Moves {
         Piece::Z => fast::generate::<{ Piece::Z }, false>(&board),
     }
 }
-

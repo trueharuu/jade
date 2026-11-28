@@ -163,8 +163,8 @@ pub(crate) fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
         //
         // The placement still adds a digit: `code` is the order of the placed
         // pieces, and `expand` reads `k` digits from it. A hold entry spends an
-        // extra queue slot (option 3 below), so without this branch a solve that
-        // needs every queue piece could not use hold at all.
+        // extra queue slot (option 3 below), so without this branch a solve
+        // that needs every queue piece could not use hold at all.
         let Some(h) = hold else {
             return false;
         };
@@ -339,7 +339,9 @@ fn completes(board: Board, piece: Piece, goal: Board) -> bool {
     if goal == PC_4 {
         // The placement must fill exactly the 4 empty cells.
         let need = Board(PC_4.0 & !board.0);
-        moves::<false>(board, piece).iter().any(|m| m.mask() == need)
+        moves::<false>(board, piece)
+            .iter()
+            .any(|m| m.mask() == need)
     } else {
         moves::<false>(board, piece).iter().any(|m| {
             let mut n = board;

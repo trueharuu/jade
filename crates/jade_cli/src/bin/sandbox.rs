@@ -1,4 +1,6 @@
-use jade_core::{board::Board, piece::Piece, render};
+use jade_core::board::Board;
+use jade_core::piece::Piece;
+use jade_core::render;
 use jade_nav::fast;
 
 pub fn main() {

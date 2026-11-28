@@ -359,18 +359,27 @@ fn walk<F: FnMut(u64, Option<Piece>) -> bool>(
         return f(code, hold.or(queue.get(d).copied()));
     }
     let Some(&active) = queue.get(d) else {
-        // The queue is empty. The held piece is not part of the queue, so it can
-        // still be placed. This must stay in step with `Solver::search` and
-        // `percent::walk`.
+        // The queue is empty. The held piece is not part of the queue, so it
+        // can still be placed. This must stay in step with
+        // `Solver::search` and `percent::walk`.
         //
         // The placement still adds a digit: `code` is the order of the placed
         // pieces, and `expand` reads `k` digits from it. A hold entry spends an
-        // extra queue slot (option 3 below), so without this branch a solve that
-        // needs every queue piece could not use hold at all.
+        // extra queue slot (option 3 below), so without this branch a solve
+        // that needs every queue piece could not use hold at all.
         let Some(h) = hold else {
             return false;
         };
-        return walk(queue, k, hold_on, d, None, (code << 3) | h as u64, placed + 1, f);
+        return walk(
+            queue,
+            k,
+            hold_on,
+            d,
+            None,
+            (code << 3) | h as u64,
+            placed + 1,
+            f,
+        );
     };
     if walk(
         queue,
@@ -448,5 +457,7 @@ fn expand(boards: &[u64], codes: &[u64], win: &mut [bool], depth: usize, k: usiz
 #[inline(always)]
 fn completes(board: Board, piece: Piece) -> bool {
     let need = Board(PC_4.0 & !board.0);
-    moves::<false>(board, piece).iter().any(|m| m.mask() == need)
+    moves::<false>(board, piece)
+        .iter()
+        .any(|m| m.mask() == need)
 }

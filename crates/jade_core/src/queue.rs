@@ -6,7 +6,7 @@ use std::str::FromStr;
 use crate::piece::Piece;
 
 /// A fixed-order queue of pieces with an absolute cap at [`CAP`] pieces.
-/// 
+///
 /// When needed, a queue can be interpreted as a multiset of pieces.
 ///
 /// The pieces are stored inline, so a queue costs one copy and no allocation.
@@ -193,7 +193,8 @@ impl Queue {
         false
     }
 
-    /// Consumes `slice` from the queue, removing the elements from left-to-right.
+    /// Consumes `slice` from the queue, removing the elements from
+    /// left-to-right.
     #[must_use]
     pub const fn consume(self, slice: &[Piece]) -> Self {
         let mut queue = self;

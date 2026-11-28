@@ -27,3 +27,5 @@ struct_excessive_bools = { level = "allow", priority = 2 }
 
 [profile.release]
 debug = true
+lto = true
+codegen-units = 1

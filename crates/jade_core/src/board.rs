@@ -229,39 +229,25 @@ impl Board {
         // of it.  A left region has 4*cols cells, so its empty count is a
         // multiple of four exactly when the filled count is.
 
-        if ((b | (b >> 1)) & COL_1) == COL_1
-            && !(b & LEFT_1).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_1) == COL_1 && !(b & LEFT_1).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_2) == COL_2
-            && !(b & LEFT_2).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_2) == COL_2 && !(b & LEFT_2).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_3) == COL_3
-            && !(b & LEFT_3).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_3) == COL_3 && !(b & LEFT_3).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_4) == COL_4
-            && !(b & LEFT_4).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_4) == COL_4 && !(b & LEFT_4).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_5) == COL_5
-            && !(b & LEFT_5).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_5) == COL_5 && !(b & LEFT_5).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_6) == COL_6
-            && !(b & LEFT_6).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_6) == COL_6 && !(b & LEFT_6).count_ones().is_multiple_of(4) {
             return true;
         }
-        if ((b | (b >> 1)) & COL_7) == COL_7
-            && !(b & LEFT_7).count_ones().is_multiple_of(4)
-        {
+        if ((b | (b >> 1)) & COL_7) == COL_7 && !(b & LEFT_7).count_ones().is_multiple_of(4) {
             return true;
         }
 

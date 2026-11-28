@@ -99,4 +99,3 @@ pub fn save_ok(saves: Saves, hold: Option<Piece>, active: Option<Piece>) -> bool
         None => false,
     }
 }
-

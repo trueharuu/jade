@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::io::Write;
+use std::io::{self};
 
 use jade_solve::fumen::encode_placements;
 
@@ -23,7 +24,14 @@ impl Decision {
                 children,
                 ..
             } => {
-                writeln!(output, "{}{}\t{}\t{}", pad, encode_placements(&field, &[*mv]), self.leaves(), self.cost)?;
+                writeln!(
+                    output,
+                    "{}{}\t{}\t{}",
+                    pad,
+                    encode_placements(&field, &[*mv]),
+                    self.leaves(),
+                    self.cost
+                )?;
                 for (index, child) in children.iter().enumerate() {
                     let Some(child) = child else {
                         continue;
@@ -34,7 +42,15 @@ impl Decision {
                     child.write_indented(output, indent + 1, *next)?;
                 }
             }
-            DecisionKind::Partial { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
+            DecisionKind::Partial {
+                field: _,
+                queue: _,
+                hold: _,
+                b2b: _,
+                combo: _,
+                steps,
+                events,
+            } => {
                 let events = events
                     .iter()
                     .map(ToString::to_string)
@@ -50,7 +66,15 @@ impl Decision {
                     events
                 )?;
             }
-            DecisionKind::Solve { field: _, queue: _, hold: _, b2b: _, combo: _, steps, events } => {
+            DecisionKind::Solve {
+                field: _,
+                queue: _,
+                hold: _,
+                b2b: _,
+                combo: _,
+                steps,
+                events,
+            } => {
                 let events = events
                     .iter()
                     .map(ToString::to_string)

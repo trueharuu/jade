@@ -269,8 +269,9 @@ impl Searcher<'_> {
 fn apply(board: Board, m: Move) -> Option<(Board, u32)> {
     let mut next = board;
     next |= m.mask();
-    let lines = (next.line_clears() as u32).saturating_sub(board.line_clears() as u32);
-    let next = next.clearshift();
+    let (n2, cleared) = next.clearshift_with_count();
+    let lines = (cleared as u32).saturating_sub(board.line_clears() as u32);
+    let next = n2;
     (!outside_playfield(next) && !pruned(next)).then_some((next, lines))
 }
 

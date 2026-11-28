@@ -273,6 +273,13 @@ impl Board {
     #[inline]
     #[must_use]
     pub const fn clearshift(self) -> Self {
+        self.clearshift_with_count().0
+    }
+
+    /// Like [`clearshift`], but also returns the number of cleared rows.
+    #[inline]
+    #[must_use]
+    pub const fn clearshift_with_count(self) -> (Self, i32) {
         const ROW_MASK: u64 = 0x3FF;
         const WIDTH_SHIFT: u32 = 10;
 
@@ -330,7 +337,7 @@ impl Board {
         out |= (r4 * nf4) << (p4_e * WIDTH_SHIFT);
         out |= (r5 * nf5) << (p5_e * WIDTH_SHIFT);
 
-        Self(out)
+        (Self(out), total_filled as i32)
     }
 
     #[inline]

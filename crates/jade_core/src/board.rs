@@ -6,6 +6,7 @@ use std::ops::BitXor;
 use std::ops::BitXorAssign;
 use std::ops::Not;
 
+use crate::header::BITS;
 use crate::header::LINES;
 use crate::header::MASK;
 use crate::header::PLAY_LINES;
@@ -394,22 +395,31 @@ impl Iterator for BoardIter<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        while self.y < LINES {
-            while self.x < WIDTH {
-                if self.board.get(self.x, self.y) {
-                    let pos = (self.x, self.y);
-                    self.x += 1;
-                    return Some(pos);
-                }
-
-                self.x += 1;
-            }
-
-            self.x = 0;
-            self.y += 1;
+        let start = (self.y * WIDTH + self.x) as u32;
+        if start >= BITS {
+            return None;
         }
 
-        None
+        let mask = self.board.0 >> start;
+        if mask == 0 {
+            return None;
+        }
+
+        let tz = mask.trailing_zeros();
+        let idx = start + tz;
+        if idx >= BITS {
+            return None;
+        }
+
+        let x = (idx % WIDTH as u32) as i32;
+        let y = (idx / WIDTH as u32) as i32;
+
+        // Advance to the cell after the one just returned.
+        let next = idx + 1;
+        self.x = (next % WIDTH as u32) as i32;
+        self.y = (next / WIDTH as u32) as i32;
+
+        Some((x, y))
     }
 }
 

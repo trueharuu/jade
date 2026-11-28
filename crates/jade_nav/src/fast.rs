@@ -130,47 +130,66 @@ fn shifts(
     }
 }
 
+/// Precomputed projection for one column: for each source row mask and
+/// landable row mask, the set of landable rows that a source bit drops to.
+const PROJECT_DOWN_TABLE: [[u8; 64]; 64] = {
+    let mut table = [[0u8; 64]; 64];
+    let mut src = 0usize;
+    while src < 64 {
+        let mut land = 0usize;
+        while land < 64 {
+            let mut result = 0u8;
+            let mut yy = 0usize;
+            while yy < 6 {
+                if src & (1usize << yy) != 0 {
+                    let mut t = yy as i32;
+                    while t >= 0 {
+                        if land & (1usize << t) != 0 {
+                            result |= 1u8 << t;
+                            break;
+                        }
+                        t -= 1;
+                    }
+                }
+                yy += 1;
+            }
+            table[src][land] = result;
+            land += 1;
+        }
+        src += 1;
+    }
+    table
+};
+
 #[inline]
 const fn project_down(sources: Board, landable: Board) -> Board {
-    let mut result = Board::empty();
-    let mut x = 0;
+    let mut result = 0u64;
+    let mut x = 0usize;
     while x < 10 {
         let mut src_col = 0u8;
         let mut land_col = 0u8;
-        let mut y = 0;
+        let mut y = 0usize;
         while y < 6 {
             if sources.0 & (1u64 << (y * 10 + x)) != 0 {
-                src_col |= 1 << y;
+                src_col |= 1u8 << y;
             }
             if landable.0 & (1u64 << (y * 10 + x)) != 0 {
-                land_col |= 1 << y;
+                land_col |= 1u8 << y;
             }
             y += 1;
         }
 
-        // For each source bit, find the first landable bit at or below it.
-        let mut yy = 0;
-        while yy < 6 {
-            if src_col & (1 << yy) != 0 {
-                // find nearest landable at or below yy
-                let mut target = -1i32;
-                let mut t = yy;
-                while t >= 0 {
-                    if land_col & (1 << t) != 0 {
-                        target = t;
-                        break;
-                    }
-                    t -= 1;
-                }
-                if target >= 0 {
-                    result.0 |= 1u64 << (target as usize * 10 + x);
-                }
+        let target = PROJECT_DOWN_TABLE[src_col as usize][land_col as usize];
+        let mut t = 0usize;
+        while t < 6 {
+            if target & (1u8 << t) != 0 {
+                result |= 1u64 << (t * 10 + x);
             }
-            yy += 1;
+            t += 1;
         }
         x += 1;
     }
-    result
+    Board(result)
 }
 
 #[inline]
